@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Imageinary</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="lobby">
+        <h1>Imageinary</h1>
+        <input type="text" id="username" placeholder="Your Username">
+        <button onclick="createRoom()">Create Game</button>
+        <input type="text" id="roomCode" placeholder="Enter Room Code">
+        <button onclick="joinRoom()">Join Game</button>
+        <div id="inviteLink" style="display: none;"></div>
+    </div>
+
+    <div id="game" style="display: none;">
+        <h1>Imageinary</h1>
+        <div id="prompt" style="display: none;">Draw: <span id="promptText"></span></div>
+        <div id="toolbar" style="display: none;">
+            <input type="color" id="colorPicker" value="#000000">
+            <select id="brushSize">
+                <option value="2">Small</option>
+                <option value="5" selected>Medium</option>
+                <option value="10">Large</option>
+            </select>
+            <button onclick="setEraser()">Eraser</button>
+            <button onclick="undo()">Undo</button>
+            <button onclick="clearCanvas()">Clear</button>
+        </div>
+        <canvas id="canvas" width="600" height="400"></canvas>
+        <div id="gameInfo">
+            <div>Room: <span id="currentRoom"></span></div>
+            <div>Round: <span id="round"></span></div>
+            <div>Drawer: <span id="drawer" data-id=""></span></div>
+            <div id="timer"></div>
+        </div>
+        <div id="players"></div>
+        <div id="guesses"></div>
+        <input type="text" id="guessInput" placeholder="Your guess">
+        <button onclick="submitGuess()">Guess</button>
+        <div id="voting" style="display: none;">
+            <img id="generatedImage" src="">
+            <button onclick="vote('like')">Like</button>
+            <button onclick="vote('dislike')">Dislike</button>
+        </div>
+        <div id="voteResults" style="display: none;"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
+</body>
+</html>

@@ -10,6 +10,21 @@ let drawingUpdateBuffer = 0;
 ctx.lineCap = 'round';
 ctx.lineJoin = 'round';
 
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text)
+        .then(() => {
+            // Flash effect to indicate copy success
+            const roomElement = document.getElementById('currentRoom');
+            roomElement.style.backgroundColor = '#4CAF50';
+            roomElement.style.color = 'white';
+            setTimeout(() => {
+                roomElement.style.backgroundColor = '';
+                roomElement.style.color = '';
+            }, 500);
+        })
+        .catch(err => console.error('Failed to copy: ', err));
+}
+
 function createRoom() {
     const username = document.getElementById('username').value.trim();
     if (username) socket.emit('createRoom', username);
@@ -21,14 +36,16 @@ function joinRoom() {
     if (username && roomCode) socket.emit('joinRoom', { roomCode, username });
 }
 
-function submitGuess() {
-    const guess = document.getElementById('guessInput').value.trim();
-    const roomCode = document.getElementById('currentRoom').textContent;
-    if (guess && roomCode) {
-        socket.emit('submitGuess', { roomCode, guess });
-        document.getElementById('guessInput').value = '';
+document.getElementById('chatInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        const message = e.target.value.trim();
+        const roomCode = document.getElementById('currentRoom').textContent;
+        if (message && roomCode) {
+            socket.emit('sendMessage', { roomCode, message });
+            e.target.value = '';
+        }
     }
-}
+});
 
 canvas.addEventListener('mousedown', (e) => {
     if (socket.id === document.getElementById('drawer').dataset.id) {
@@ -120,6 +137,10 @@ function startGame(roomCode, username, inviteLink) {
     document.getElementById('lobby').style.display = 'none';
     document.getElementById('game').style.display = 'block';
     document.getElementById('currentRoom').textContent = roomCode;
+    
+    // Initialize timer
+    document.getElementById('timer').textContent = getTimeString('--');
+    
     if (inviteLink) {
         const inviteDiv = document.getElementById('inviteLink');
         inviteDiv.style.display = 'block';
@@ -133,9 +154,10 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     document.getElementById('drawer').dataset.id = currentDrawer;
 
     const playersDiv = document.getElementById('players');
-    playersDiv.innerHTML = 'Players:<br>' + players.map(p => `${p.username}: ${p.score}`).join('<br>');
+    playersDiv.innerHTML = '<strong>Players</strong>' + 
+        players.map(p => `<div><span style="color:${p.color || '#000'}">${p.username}</span>: ${p.score}</div>`).join('');
 
-    document.getElementById('guessInput').disabled = voting || socket.id === currentDrawer;
+    document.getElementById('chatInput').disabled = voting || socket.id === currentDrawer;
     document.getElementById('toolbar').style.display = socket.id === currentDrawer ? 'block' : 'none';
 });
 
@@ -151,10 +173,14 @@ socket.on('newTurn', ({ drawer, drawerId, round }) => {
     drawingUpdateBuffer = 0;
     
     // Reset UI
-    document.getElementById('guesses').innerHTML = '';
+    document.getElementById('chat').innerHTML = '';
     document.getElementById('voting').style.display = 'none';
     document.getElementById('voteResults').style.display = 'none';
     document.getElementById('prompt').style.display = 'none';
+    
+    // Ensure timer is visible and reset
+    document.getElementById('timer').textContent = getTimeString('--');
+    document.getElementById('timer').style.color = '';
     
     // Show drawing tools only for the drawer
     document.getElementById('toolbar').style.display = socket.id === drawerId ? 'block' : 'none';
@@ -162,8 +188,6 @@ socket.on('newTurn', ({ drawer, drawerId, round }) => {
     // Reset color picker state
     isEraser = false;
     document.getElementById('colorPicker').disabled = false;
-    
-    startTimer(40);
 });
 
 socket.on('newPrompt', (prompt) => {
@@ -197,24 +221,22 @@ socket.on('drawingUpdate', (drawingData) => {
     img.src = drawingData;
 });
 
-socket.on('newGuess', ({ username, guess }) => {
-    const guessesDiv = document.getElementById('guesses');
-    const existing = Array.from(guessesDiv.children).find(div => div.dataset.username === username);
-    if (existing) {
-        existing.textContent = `${username}: ${guess}`;
-    } else {
-        const div = document.createElement('div');
-        div.dataset.username = username;
-        div.textContent = `${username}: ${guess}`;
-        guessesDiv.appendChild(div);
-    }
+socket.on('newMessage', ({ username, message, timestamp, color }) => {
+    const chatDiv = document.getElementById('chat');
+    const messageDiv = document.createElement('div');
+    
+    // Format with line break to prevent timestamp/username from being cut off
+    messageDiv.innerHTML = `<div><span style="color: ${color}">[${timestamp}] ${username}:</span></div>
+                           <div style="padding-left: 10px;">${message}</div>`;
+    
+    chatDiv.appendChild(messageDiv);
+    chatDiv.scrollTop = chatDiv.scrollHeight; // Auto-scroll to bottom
 });
 
 socket.on('startVoting', (imageSrc) => {
     document.getElementById('generatedImage').src = imageSrc;
     document.getElementById('voting').style.display = 'block';
     document.querySelectorAll('#voting button').forEach(btn => btn.disabled = false);
-    startTimer(20);
 });
 
 function vote(choice) {
@@ -227,20 +249,51 @@ socket.on('votingResults', ({ message, scores }) => {
     document.getElementById('voteResults').textContent = message;
     document.getElementById('voteResults').style.display = 'block';
     const playersDiv = document.getElementById('players');
-    playersDiv.innerHTML = 'Players:<br>' + scores.map(s => `${s.username}: ${s.score}`).join('<br>');
+    playersDiv.innerHTML = '<strong>Players</strong>' + 
+        scores.map(s => `<div><span style="color:${s.color || '#000'}">${s.username}</span>: ${s.score}</div>`).join('');
 });
 
 socket.on('error', (message) => alert(message));
 
+// Track the current timer interval so we can clear it
+let currentTimerInterval = null;
+
+// Helper function to format time with the clock emoji
+function getTimeString(seconds) {
+    return `⏱️ ${seconds}`;
+}
+
 function startTimer(seconds) {
+    // Clear any existing timer
+    if (currentTimerInterval) {
+        clearInterval(currentTimerInterval);
+    }
+    
     let timeLeft = seconds;
     const timer = document.getElementById('timer');
-    timer.textContent = `Time: ${timeLeft}s`;
-    const interval = setInterval(() => {
+    timer.textContent = getTimeString(timeLeft);
+    
+    currentTimerInterval = setInterval(() => {
         timeLeft--;
-        timer.textContent = `Time: ${timeLeft}s`;
-        if (timeLeft <= 0) clearInterval(interval);
+        timer.textContent = getTimeString(timeLeft);
+        
+        // Add visual indicator when time is running low
+        if (timeLeft <= 10) {
+            timer.style.color = '#e74c3c';
+        } else {
+            timer.style.color = '';
+        }
+        
+        if (timeLeft <= 0) {
+            clearInterval(currentTimerInterval);
+            currentTimerInterval = null;
+        }
     }, 1000);
 }
+
+// Listen for timer start events from the server
+socket.on('startTimer', (seconds) => {
+    startTimer(seconds);
+});
 
 if (new URLSearchParams(window.location.search).get('room')) joinRoom();

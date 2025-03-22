@@ -30,15 +30,18 @@
         </div>
         <canvas id="canvas" width="600" height="400"></canvas>
         <div id="gameInfo">
-            <div>Room: <span id="currentRoom"></span></div>
-            <div>Round: <span id="round"></span></div>
-            <div>Drawer: <span id="drawer" data-id=""></span></div>
-            <div id="timer"></div>
+            <span>🏠 <span id="currentRoom" class="copyable" onclick="copyToClipboard(this.textContent)" title="Click to copy"></span></span>
+            <span>🔄 <span id="round"></span></span>
+            <span>✏️ <span id="drawer" data-id=""></span></span>
+            <span id="timer"></span>
         </div>
-        <div id="players"></div>
-        <div id="guesses"></div>
-        <input type="text" id="guessInput" placeholder="Your guess">
-        <button onclick="submitGuess()">Guess</button>
+        <div class="chat-container">
+            <div id="players"></div>
+            <div id="chat"></div>
+        </div>
+        <div class="input-container">
+            <input type="text" id="chatInput" placeholder="Guess...">
+        </div>
         <div id="voting" style="display: none;">
             <img id="generatedImage" src="">
             <button onclick="vote('like')">Like</button>

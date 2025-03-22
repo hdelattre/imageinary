@@ -20,6 +20,7 @@ const model = genAI.getGenerativeModel({
 // In-memory storage
 const games = new Map(); // roomCode -> gameData
 const drawings = new Map(); // roomCode -> drawingData
+const lastMessageTimes = new Map(); // Tracks last message time per player
 
 // Predefined prompts for the drawer
 const prompts = [
@@ -53,13 +54,28 @@ io.on('connection', (socket) => {
                 uniqueUsername = `${username}(${counter})`;
                 counter++;
             }
-            game.players.set(socket.id, { username: uniqueUsername, score: 0 });
+            game.players.set(socket.id, { username: uniqueUsername, score: 0, color: getRandomColor() });
             socket.emit('roomJoined', { roomCode, username: uniqueUsername });
             
             // Send current drawing state to the new player
             const currentDrawing = drawings.get(roomCode);
             if (currentDrawing) {
                 socket.emit('drawingUpdate', currentDrawing);
+            }
+            
+            // Sync the timer for the new player
+            if (game.timerEnd > Date.now()) {
+                // If we're in drawing phase
+                const remainingSeconds = Math.ceil((game.timerEnd - Date.now()) / 1000);
+                if (remainingSeconds > 0) {
+                    socket.emit('startTimer', remainingSeconds);
+                }
+            } else if (game.votingTimerEnd > Date.now()) {
+                // If we're in voting phase
+                const remainingSeconds = Math.ceil((game.votingTimerEnd - Date.now()) / 1000);
+                if (remainingSeconds > 0) {
+                    socket.emit('startTimer', remainingSeconds);
+                }
             }
             
             updateGameState(roomCode);
@@ -76,14 +92,24 @@ io.on('connection', (socket) => {
         socket.to(roomCode).emit('drawingUpdate', drawingData);
     });
 
-    socket.on('submitGuess', ({ roomCode, guess }) => {
+    socket.on('sendMessage', ({ roomCode, message }) => {
         const game = games.get(roomCode);
         if (game && socket.id !== game.currentDrawer) {
-            game.lastGuesses.set(socket.id, guess);
-            io.to(roomCode).emit('newGuess', {
-                username: game.players.get(socket.id).username,
-                guess,
-            });
+            const now = Date.now();
+            const lastTime = lastMessageTimes.get(socket.id) || 0;
+            
+            // Spam control: 1 message/sec
+            if (now - lastTime < 1000) return;
+            lastMessageTimes.set(socket.id, now);
+
+            const timestamp = new Date().toLocaleTimeString();
+            const username = game.players.get(socket.id).username;
+            const color = game.players.get(socket.id).color || '#000000'; // Default color if not set
+            
+            game.chatHistory.push({ playerId: socket.id, username, message, timestamp, color });
+            game.lastMessages.set(socket.id, message);
+            
+            io.to(roomCode).emit('newMessage', { username, message, timestamp, color });
         }
     });
 
@@ -114,9 +140,29 @@ io.on('connection', (socket) => {
     });
 });
 
+function getRandomColor() {
+    // Preset list of readable colors
+    const colors = [
+        '#3498db', // Blue
+        '#2ecc71', // Green
+        '#e74c3c', // Red
+        '#9b59b6', // Purple
+        '#f39c12', // Orange
+        '#1abc9c', // Teal
+        '#d35400', // Dark Orange
+        '#8e44ad', // Dark Purple
+        '#c0392b', // Dark Red
+        '#16a085', // Dark Teal
+        '#27ae60', // Dark Green
+        '#2980b9'  // Dark Blue
+    ];
+    
+    return colors[Math.floor(Math.random() * colors.length)];
+}
+
 function initializeGame(roomCode, socketId, username) {
     games.set(roomCode, {
-        players: new Map([[socketId, { username, score: 0 }]]),
+        players: new Map([[socketId, { username, score: 0, color: getRandomColor() }]]),
         currentDrawer: socketId,
         round: 1,
         timer: null,
@@ -124,7 +170,8 @@ function initializeGame(roomCode, socketId, username) {
         votingTimer: null,
         votingTimerEnd: 0,
         currentPrompt: '',
-        lastGuesses: new Map(),
+        chatHistory: [],
+        lastMessages: new Map(),
         votes: new Map(),
         imageSrc: '',
         voting: false,
@@ -138,7 +185,8 @@ function startTurn(roomCode) {
 
     game.voting = false;
     game.votes.clear();
-    game.lastGuesses.clear();
+    game.chatHistory = [];
+    game.lastMessages.clear();
     game.imageSrc = '';
     
     // Clear the current drawing data
@@ -156,6 +204,10 @@ function startTurn(roomCode) {
 
     game.timerEnd = Date.now() + 40000;
     game.timer = setTimeout(() => endRound(roomCode), 40000);
+    
+    // Start the timer on all clients
+    io.to(roomCode).emit('startTimer', 40);
+    
     updateGameState(roomCode);
     
     // Send the initial blank canvas to all players
@@ -183,7 +235,7 @@ async function generateNewImage(roomCode) {
 
     try {
         const drawingBuffer = Buffer.from(drawingData.split(',')[1], 'base64');
-        const guesses = Array.from(game.lastGuesses.values()).filter(guess => guess);
+        const guesses = Array.from(game.lastMessages.values()).filter(guess => guess);
         const prompt = `Create a realistic 3D rendered image based on this drawing and these descriptions: ${guesses.join(', ')}`;
 
         const response = await model.generateContent([
@@ -214,6 +266,9 @@ function startVoting(roomCode) {
     io.to(roomCode).emit('startVoting', game.imageSrc);
     game.votingTimerEnd = Date.now() + 20000;
     game.votingTimer = setTimeout(() => tallyVotes(roomCode), 20000);
+    
+    // Start the voting timer on all clients
+    io.to(roomCode).emit('startTimer', 20);
 }
 
 function tallyVotes(roomCode) {
@@ -229,8 +284,8 @@ function tallyVotes(roomCode) {
         resultMessage = `The image got ${likes} likes out of ${totalPlayers}. Drawer gets a point!`;
     } else {
         const correctGuessers = [];
-        game.lastGuesses.forEach((guess, id) => {
-            if (guess.toLowerCase() === game.currentPrompt.toLowerCase()) {
+        game.lastMessages.forEach((message, id) => {
+            if (message.toLowerCase() === game.currentPrompt.toLowerCase()) {
                 correctGuessers.push(id);
             }
         });
@@ -245,7 +300,11 @@ function tallyVotes(roomCode) {
     }
     io.to(roomCode).emit('votingResults', {
         message: resultMessage,
-        scores: Array.from(game.players.entries()).map(([id, data]) => ({ username: data.username, score: data.score })),
+        scores: Array.from(game.players.entries()).map(([id, data]) => ({ 
+            username: data.username, 
+            score: data.score,
+            color: data.color 
+        })),
     });
     setTimeout(() => {
         game.round++;
@@ -271,6 +330,7 @@ function updateGameState(roomCode) {
         id,
         username: data.username,
         score: data.score,
+        color: data.color,
     }));
 
     io.to(roomCode).emit('gameState', {

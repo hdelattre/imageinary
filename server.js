@@ -252,12 +252,12 @@ function endRound(roomCode) {
 async function generateNewImage(roomCode) {
     const game = games.get(roomCode);
     const drawingData = drawings.get(roomCode);
-    if (!game || !drawingData) {
-        console.error(`Missing game or drawing data for roomCode: ${roomCode}`);
-        return;
-    }
 
     try {
+        if (!game || !drawingData) {
+            throw new Error(`Missing game or drawing data for roomCode: ${roomCode}`);
+        }
+
         // Extract base64 string from data URL
         const base64Data = drawingData.split(',')[1];
         if (!base64Data) {
@@ -355,8 +355,7 @@ async function generateNewImage(roomCode) {
 
         // If we couldn't generate any images, inform the users
         if (generatedImages.length === 0) {
-            io.to(roomCode).emit('error', 'Failed to generate any images');
-            return;
+            throw new Error('No images to vote on');
         }
 
         // Store the generated images in the game state

@@ -52,15 +52,15 @@
             </div>
         </div>
         <div id="gameInfo">
-            <span class="room-container">
+            <span class="room-container game-info-item">
                 🏠 <span id="currentRoom" class="copyable" onclick="copyToClipboard(this.textContent)" title="Click to copy room code"></span>
                 <button id="inviteBtn" class="icon-btn" title="Copy invite link" onclick="copyRoomLink()">
                     <span class="icon">📩</span>
                 </button>
             </span>
-            <span>🔄 <span id="round"></span></span>
-            <span>✏️ <span id="drawer" data-id=""></span></span>
-            <span id="timer"></span>
+            <span class="game-info-item">🔄 <span id="round"></span></span>
+            <span class="game-info-item">✏️ <span id="drawer" data-id=""></span></span>
+            <span class="game-info-item" id="timer"></span>
         </div>
         <div class="chat-container">
             <div id="players"></div>

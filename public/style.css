@@ -401,7 +401,6 @@ button {
     align-items: center;
     margin: 0 auto 15px auto;
     width: 100%;
-    min-height: 430px; /* Height of canvas + toolbar */
 }
 
 #toolbar {
@@ -525,6 +524,13 @@ button {
         max-width: 600px;
         max-height: 400px;
     }
+    
+    /* Compactify the game info section */
+    #gameInfo {
+        padding: 6px 2px;
+        background: #f8f8f8;
+        border-radius: 4px;
+    }
 
     /* Stack chat and players vertically */
     .chat-container {
@@ -571,15 +577,18 @@ button {
         max-width: 100%;
     }
 
-    /* Make game info more compact */
+    /* Keep game info in a single row until very small screens */
     #gameInfo {
-        flex-direction: column;
-        align-items: flex-start;
+        flex-wrap: wrap;
+        justify-content: space-around;
+        align-items: center;
         padding: 5px;
+        gap: 10px;
     }
 
     #gameInfo span {
-        margin: 5px 0;
+        margin: 0;
+        font-size: 0.9em;
     }
 
     /* Voting images in a single column */
@@ -600,6 +609,32 @@ button {
     
     #lobby h1, #game h1 {
         font-size: 24px;
+    }
+}
+
+/* Extra small screens - organize in a 2x2 grid when absolutely needed */
+@media (max-width: 380px) {
+    #gameInfo {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        align-items: start;
+    }
+    
+    /* Style the grid items */
+    .game-info-item {
+        padding: 4px;
+        border-radius: 3px;
+        background-color: rgba(255, 255, 255, 0.6);
+        text-align: center;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    
+    /* Ensure room container stays together */
+    .room-container {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 }
 
@@ -669,11 +704,17 @@ body {
     background: #2980b9;
 }
 
-/* Room info and invite button styles */
+/* Game info item and room styles */
+.game-info-item {
+    display: inline-block;
+    margin: 0 2px;
+}
+
 .room-container {
     display: flex;
     align-items: center;
     gap: 5px;
+    white-space: nowrap;
 }
 
 .icon-btn {

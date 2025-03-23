@@ -817,9 +817,10 @@ function copyRoomLink() {
     copyToClipboard(roomLink);
 }
 
-// Function to view room prompt in a modal
+// Function to view or edit room prompt
 function viewRoomPrompt() {
     const roomCode = document.getElementById('currentRoom').textContent;
+    // Get room prompt with host check included
     socket.emit('getRoomPrompt', roomCode);
 }
 
@@ -841,9 +842,75 @@ window.addEventListener('load', () => {
 });
 
 // Socket event to receive room prompt
-socket.on('roomPrompt', (prompt) => {
-    showPromptModal(prompt);
+socket.on('roomPrompt', (data) => {
+    if (data.isHost) {
+        // If host, open the editor
+        openPromptEditorWithPrompt(data.prompt);
+    } else {
+        // If not host, just show the view
+        showPromptModal(data.prompt);
+    }
 });
+
+// Function to open prompt editor with a specific prompt
+function openPromptEditorWithPrompt(prompt) {
+    const promptTemplate = document.getElementById('promptTemplate');
+    const resetPromptBtn = document.getElementById('resetPromptBtn');
+    const savePromptBtn = document.getElementById('savePromptBtn');
+    
+    // Save the current room prompt for reference
+    window.currentRoomPrompt = prompt;
+    
+    // Set initial value
+    promptTemplate.value = prompt;
+    document.getElementById('promptEditorModal').style.display = 'flex';
+    
+    // Store the original button actions for later restoration
+    const originalSaveAction = savePromptBtn.onclick;
+    const originalResetAction = resetPromptBtn.onclick;
+    
+    // Custom reset action to reset to current room prompt, not default
+    resetPromptBtn.onclick = function() {
+        promptTemplate.value = window.currentRoomPrompt;
+    };
+    
+    // Set the save button to update the room prompt
+    savePromptBtn.onclick = function() {
+        updateRoomPrompt();
+        // Restore original actions for future non-game prompt edits
+        setTimeout(() => {
+            savePromptBtn.onclick = originalSaveAction;
+            resetPromptBtn.onclick = originalResetAction;
+        }, 100);
+    };
+}
+
+// Function to update the room's prompt
+function updateRoomPrompt() {
+    const newPrompt = document.getElementById('promptTemplate').value.trim();
+    const roomCode = document.getElementById('currentRoom').textContent;
+    
+    if (!newPrompt) {
+        alert('Prompt cannot be empty!');
+        return;
+    }
+    
+    if (!newPrompt.includes('{guess}')) {
+        alert('Prompt must include {guess} placeholder!');
+        return;
+    }
+    
+    // Send the updated prompt to the server
+    socket.emit('updateRoomPrompt', { roomCode, prompt: newPrompt });
+    
+    // Also update local storage for future games
+    customPrompt = newPrompt;
+    localStorage.setItem('imageinary_custom_prompt', newPrompt);
+    
+    // Close the modal
+    document.getElementById('promptEditorModal').style.display = 'none';
+    alert('Prompt updated successfully!');
+}
 
 // Prompt Editor functionality
 function initPromptEditor() {

@@ -93,7 +93,36 @@ io.on('connection', (socket) => {
     socket.on('getRoomPrompt', (roomCode) => {
         const game = games.get(roomCode);
         if (game) {
-            socket.emit('roomPrompt', game.customPrompt);
+            // Check if this socket is the host (first player)
+            const players = Array.from(game.players.keys());
+            const isHost = players.length > 0 && players[0] === socket.id;
+            
+            // Return the prompt and host status in one response
+            socket.emit('roomPrompt', {
+                prompt: game.customPrompt,
+                isHost: isHost
+            });
+        }
+    });
+    
+    // Endpoint to update a room's prompt
+    socket.on('updateRoomPrompt', ({ roomCode, prompt }) => {
+        const game = games.get(roomCode);
+        if (game) {
+            // Verify this is the host
+            const players = Array.from(game.players.keys());
+            const isHost = players.length > 0 && players[0] === socket.id;
+            
+            if (isHost) {
+                // Update the custom prompt
+                game.customPrompt = sanitizeMessage(prompt, './!?-,\'');
+                console.log(`Room ${roomCode} prompt updated by host`);
+                
+                // If this is a public room, update the public room list
+                if (game.isPublic) {
+                    updatePublicRoomsList(roomCode);
+                }
+            }
         }
     });
     

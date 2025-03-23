@@ -105,10 +105,11 @@
                     <button type="button" id="eraserBtn" onclick="toggleEraser()">Eraser</button>
                     <button type="button" onclick="undo()">Undo</button>
                     <button type="button" onclick="clearCanvas()">Clear</button>
-                    <button type="button" id="viewPromptBtn" class="icon-btn" title="View AI Prompt" onclick="viewRoomPrompt()">
-                        <span class="icon">🔮</span>
-                    </button>
                 </div>
+                <!-- Moved outside toolbar so it's always accessible -->
+                <button type="button" id="viewPromptBtn" class="icon-btn" title="View AI Prompt" onclick="viewRoomPrompt()" style="position: absolute; top: 10px; right: 10px; z-index: 10;">
+                    <span class="icon">🔮</span>
+                </button>
                 <canvas id="canvas" width="600" height="400"></canvas>
             </div>
             

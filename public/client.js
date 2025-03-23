@@ -525,6 +525,21 @@ function startGame(roomCode, username, inviteLink) {
     document.getElementById('game').style.display = 'block';
     document.getElementById('currentRoom').textContent = roomCode;
     
+    // Check if current player is host to adjust viewPromptBtn display
+    socket.emit('checkIfHost', roomCode, (isHost) => {
+        const viewPromptBtn = document.getElementById('viewPromptBtn');
+        if (viewPromptBtn) {
+            // Make prompt button prominent for host
+            if (isHost) {
+                viewPromptBtn.classList.add('host-prompt-btn');
+                viewPromptBtn.title = 'Edit AI Prompt (Host Only)';
+            } else {
+                viewPromptBtn.classList.remove('host-prompt-btn');
+                viewPromptBtn.title = 'View AI Prompt';
+            }
+        }
+    });
+    
     // Initialize timer
     document.getElementById('timer').textContent = getTimeString('--');
     
@@ -843,6 +858,7 @@ window.addEventListener('load', () => {
 
 // Socket event to receive room prompt
 socket.on('roomPrompt', (data) => {
+    console.log('Received room prompt data:', data);
     if (data.isHost) {
         // If host, open the editor
         openPromptEditorWithPrompt(data.prompt);

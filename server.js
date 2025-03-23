@@ -109,6 +109,17 @@ io.on('connection', (socket) => {
         }
     });
     
+    // Endpoint to check if a player is the host (first player)
+    socket.on('checkIfHost', (roomCode, callback) => {
+        const game = games.get(roomCode);
+        if (game && typeof callback === 'function') {
+            // Check if this socket is the first player (host)
+            const players = Array.from(game.players.keys());
+            const isHost = players.length > 0 && players[0] === socket.id;
+            callback(isHost);
+        }
+    });
+    
     // Endpoint to update a room's prompt
     socket.on('updateRoomPrompt', ({ roomCode, prompt }) => {
         const game = games.get(roomCode);

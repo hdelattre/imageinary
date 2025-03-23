@@ -985,6 +985,16 @@ button {
     font-size: 14px;
 }
 
+.host-prompt-btn {
+    background-color: #2ecc71;
+    border: 2px solid #27ae60;
+    box-shadow: 0 0 5px rgba(46, 204, 113, 0.5);
+}
+
+.host-prompt-btn:hover {
+    background-color: #27ae60;
+}
+
 /* Prompt view modal styles */
 .prompt-view {
     max-width: 600px;

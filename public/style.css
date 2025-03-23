@@ -1,15 +1,39 @@
-body {
-    font-family: Arial, sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    min-height: 100vh;
+html {
+    font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    height: 100%;
+    width: 100%;
     margin: 0;
+    padding: 0;
     background-color: #121212;
     color: #e0e0e0;
-    padding: 0;
     box-sizing: border-box;
+    overflow: hidden;
+    position: fixed;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    font-family: inherit;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: inherit;
+    color: inherit;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    overflow-x: hidden;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: none;
 }
 
 #lobby {
@@ -30,11 +54,14 @@ body {
     text-align: center;
     max-width: 640px;
     width: 100%;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    min-height: 600px;
+    min-height: calc(100vh - 20px);
+    height: calc(100% - 20px);
     overflow-y: auto;
-    margin-top: 10px;
+    margin: 10px 0;
+    position: relative;
 }
 
 #lobby h1 {
@@ -547,11 +574,37 @@ button:hover {
 }
 
 @media (max-width: 600px) {
+    html, body {
+        height: 100%;
+    }
+    
+    #lobby, #game {
+        margin: 0;
+        border-radius: 0;
+        min-height: 100%;
+        height: 100%;
+        width: 100%;
+        max-width: 100%;
+        box-shadow: none;
+        box-sizing: border-box;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+    
+    #game {
+        padding: 10px;
+    }
+    
     #canvas {
         width: 100%;
         height: auto;
-        max-width: 600px;
-        max-height: 400px;
+        min-height: 200px;
+        aspect-ratio: 3/2;
+        max-width: 100%;
+        border-radius: 8px;
     }
     
     #gameInfo {
@@ -560,14 +613,19 @@ button:hover {
         border-radius: 4px;
         align-items: center;
         min-height: 30px;
+        margin: 5px 0;
+        flex-wrap: wrap;
+        justify-content: space-around;
     }
 
     .chat-container {
         display: flex;
         flex-direction: column;
         height: auto;
-        max-height: none;
+        min-height: 200px;
+        flex: 1;
         grid-template-columns: 1fr;
+        margin-bottom: 0;
     }
 
     #players {
@@ -575,14 +633,18 @@ button:hover {
         border-right: none;
         border-bottom: 1px solid #444;
         padding: 8px;
-        height: 120px;
+        height: 100px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     #chat {
         width: 100%;
         padding: 8px;
-        height: 250px;
+        height: auto;
         flex: 1;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     #toolbar {
@@ -590,24 +652,16 @@ button:hover {
         justify-content: center;
         padding: 6px;
         width: 100%;
+        margin: 3px 0 6px 0;
     }
 
     #toolbar button,
-    #toolbar select {
+    #toolbar select,
+    #toolbar input {
         margin: 2px;
         padding: 8px 6px;
         font-size: 12px;
-    }
-    
-    #game {
-        padding: 10px;
-        max-width: 100%;
-    }
-
-    #gameInfo {
-        flex-wrap: wrap;
-        justify-content: space-around;
-        align-items: center;
+        height: 32px;
     }
 
     #gameInfo span {
@@ -631,10 +685,51 @@ button:hover {
     
     #lobby h1 {
         font-size: 24px;
+        margin-top: 10px;
     }
 
     #game h1 {
         font-size: 18px;
+        margin: 5px 0;
+    }
+    
+    .input-container {
+        margin-top: 0;
+        position: relative;
+        bottom: 0;
+        width: 100%;
+        height: 40px;
+    }
+    
+    #chatInput {
+        height: 40px;
+        font-size: 16px;  /* Prevents iOS zoom on focus */
+    }
+    
+    /* Fix for iOS Safari bottom toolbar */
+    .input-container {
+        padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    
+    /* Prevent rubber band scrolling */
+    .drawing-container {
+        margin-bottom: 5px;
+    }
+    
+    /* More space for small screens */
+    #voting {
+        padding: 10px;
+        min-height: 300px;
+        margin-bottom: 10px;
+    }
+    
+    #voting h2 {
+        font-size: 18px;
+        margin: 5px 0 10px 0;
+    }
+    
+    .drawing-view {
+        margin-bottom: 5px;
     }
 }
 

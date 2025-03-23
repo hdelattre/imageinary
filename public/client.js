@@ -29,6 +29,21 @@ function getRandomName() {
     return placeholderNames[Math.floor(Math.random() * placeholderNames.length)];
 }
 
+// Prevent double-tap zoom on mobile
+document.addEventListener('touchend', function(event) {
+    if (event.target.tagName !== 'INPUT' && event.target.tagName !== 'TEXTAREA') {
+        event.preventDefault();
+    }
+}, { passive: false });
+
+// Prevent scrolling when interacting with the canvas
+document.addEventListener('touchmove', function(e) {
+    if (e.target.tagName === 'CANVAS') {
+        e.preventDefault();
+    }
+}, { passive: false });
+
+// Set up app
 window.addEventListener('load', () => {
     clearDrawCanvas();
     

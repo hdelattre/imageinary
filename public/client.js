@@ -267,6 +267,16 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     document.getElementById('toolbar').style.display = socket.id === currentDrawer ? 'block' : 'none';
 });
 
+// Function to add system messages to chat
+function addSystemMessage(message) {
+    const chatDiv = document.getElementById('chat');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'system-message';
+    messageDiv.textContent = message;
+    chatDiv.appendChild(messageDiv);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
 socket.on('newTurn', ({ drawer, drawerId, round }) => {
     document.getElementById('drawer').textContent = drawer;
     document.getElementById('drawer').dataset.id = drawerId;
@@ -296,6 +306,9 @@ socket.on('newTurn', ({ drawer, drawerId, round }) => {
     isEraser = false;
     document.getElementById('colorPicker').disabled = false;
     document.getElementById('eraserBtn').classList.remove('eraser-active');
+    
+    // Add system message about new turn
+    addSystemMessage(`Round ${round}: ${drawer} is now drawing!`);
 });
 
 socket.on('newPrompt', (prompt) => {
@@ -333,9 +346,8 @@ socket.on('newMessage', ({ username, message, timestamp, color }) => {
     const chatDiv = document.getElementById('chat');
     const messageDiv = document.createElement('div');
     
-    // Format with line break to prevent timestamp/username from being cut off
-    messageDiv.innerHTML = `<div><span style="color: ${color}">[${timestamp}] ${username}:</span></div>
-                           <div style="padding-left: 10px;">${message}</div>`;
+    // Format with username and message on same line
+    messageDiv.innerHTML = `<span style="color: ${color}">${username}:</span> ${message}`;
     
     chatDiv.appendChild(messageDiv);
     chatDiv.scrollTop = chatDiv.scrollHeight; // Auto-scroll to bottom
@@ -382,6 +394,9 @@ socket.on('startVoting', (generatedImages) => {
     });
     
     votingArea.style.display = 'block';
+    
+    // Add system message about voting starting
+    addSystemMessage("Time to vote! Pick your favorite image.");
 });
 
 function vote(imagePlayerId) {
@@ -401,6 +416,9 @@ socket.on('votingResults', ({ message, scores }) => {
     const playersDiv = document.getElementById('players');
     playersDiv.innerHTML = '<strong>Players</strong>' + 
         scores.map(s => `<div><span style="color:${s.color || '#000'}">${s.username}</span>: ${s.score}</div>`).join('');
+    
+    // Add system message about voting results
+    addSystemMessage(message);
 });
 
 socket.on('error', (message) => console.error(message));

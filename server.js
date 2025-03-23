@@ -42,6 +42,8 @@ io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
 
     socket.on('createRoom', (username) => {
+        username = sanitizeMessage(username, '');
+        
         const roomCode = uuidv4().slice(0, 6).toUpperCase();
         socket.join(roomCode);
         initializeGame(roomCode, socket.id, username);
@@ -49,6 +51,8 @@ io.on('connection', (socket) => {
     });
 
     socket.on('joinRoom', ({ roomCode, username }) => {
+        username = sanitizeMessage(username, '');
+        
         if (games.has(roomCode)) {
             socket.join(roomCode);
             const game = games.get(roomCode);
@@ -106,6 +110,8 @@ io.on('connection', (socket) => {
             if (now - lastTime < 1000) return;
             lastMessageTimes.set(socket.id, now);
 
+            message = sanitizeMessage(message, '.?!');
+
             const timestamp = new Date().toLocaleTimeString();
             const username = game.players.get(socket.id).username;
             const color = game.players.get(socket.id).color || '#000000'; // Default color if not set
@@ -146,6 +152,12 @@ io.on('connection', (socket) => {
         });
     });
 });
+
+function sanitizeMessage(message, allowedPunctuation = '') {
+    const escapedPunctuation = allowedPunctuation.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+    const regex = new RegExp(`[^a-zA-Z0-9\\s${escapedPunctuation}]`, 'g');
+    return message.replace(regex, '');
+}
 
 function getRandomColor() {
     // Preset list of readable colors

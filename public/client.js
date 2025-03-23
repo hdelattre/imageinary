@@ -260,8 +260,25 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     document.getElementById('drawer').dataset.id = currentDrawer;
 
     const playersDiv = document.getElementById('players');
-    playersDiv.innerHTML = '<strong>Players</strong>' + 
-        players.map(p => `<div><span style="color:${p.color || '#000'}">${p.username}</span>: ${p.score}</div>`).join('');
+    playersDiv.innerHTML = ''; // Clear existing content
+    
+    const titleEl = document.createElement('strong');
+    titleEl.textContent = 'Players';
+    playersDiv.appendChild(titleEl);
+    
+    // Add each player with proper DOM methods to prevent XSS
+    players.forEach(p => {
+        const playerDiv = document.createElement('div');
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.style.color = p.color || '#000';
+        nameSpan.textContent = p.username;
+        
+        playerDiv.appendChild(nameSpan);
+        playerDiv.appendChild(document.createTextNode(': ' + p.score));
+        
+        playersDiv.appendChild(playerDiv);
+    });
 
     document.getElementById('chatInput').disabled = voting || socket.id === currentDrawer;
     document.getElementById('toolbar').style.display = socket.id === currentDrawer ? 'block' : 'none';
@@ -348,8 +365,15 @@ socket.on('newMessage', ({ username, message, timestamp, color }) => {
     const chatDiv = document.getElementById('chat');
     const messageDiv = document.createElement('div');
     
-    // Format with username and message on same line
-    messageDiv.innerHTML = `<span style="color: ${color}">${username}:</span> ${message}`;
+    const usernameSpan = document.createElement('span');
+    usernameSpan.style.color = color;
+    usernameSpan.textContent = `${username}: `;
+    
+    const messageText = document.createTextNode(message);
+    
+    // Add both elements to the message div
+    messageDiv.appendChild(usernameSpan);
+    messageDiv.appendChild(messageText);
     
     chatDiv.appendChild(messageDiv);
     chatDiv.scrollTop = chatDiv.scrollHeight; // Auto-scroll to bottom
@@ -377,7 +401,12 @@ socket.on('startVoting', (generatedImages) => {
         // Add the player info and guess
         const infoDiv = document.createElement('div');
         infoDiv.className = 'image-info';
-        infoDiv.innerHTML = `<strong>${imageData.playerName}</strong>: "${imageData.guess}"`;
+        
+        const nameElement = document.createElement('strong');
+        nameElement.textContent = imageData.playerName;
+        
+        infoDiv.appendChild(nameElement);
+        infoDiv.appendChild(document.createTextNode(': "' + imageData.guess + '"'));
         
         // Add the vote button
         const voteButton = document.createElement('button');
@@ -416,9 +445,27 @@ function vote(imagePlayerId) {
 socket.on('votingResults', ({ message, scores }) => {
     document.getElementById('voteResults').textContent = message;
     document.getElementById('voteResults').style.display = 'block';
+    
     const playersDiv = document.getElementById('players');
-    playersDiv.innerHTML = '<strong>Players</strong>' + 
-        scores.map(s => `<div><span style="color:${s.color || '#000'}">${s.username}</span>: ${s.score}</div>`).join('');
+    playersDiv.innerHTML = ''; // Clear existing content
+    
+    const titleEl = document.createElement('strong');
+    titleEl.textContent = 'Players';
+    playersDiv.appendChild(titleEl);
+    
+    // Add each player with proper DOM methods to prevent XSS
+    scores.forEach(s => {
+        const playerDiv = document.createElement('div');
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.style.color = s.color || '#000';
+        nameSpan.textContent = s.username;
+        
+        playerDiv.appendChild(nameSpan);
+        playerDiv.appendChild(document.createTextNode(': ' + s.score));
+        
+        playersDiv.appendChild(playerDiv);
+    });
     
     // Add system message about voting results
     addSystemMessage(message);

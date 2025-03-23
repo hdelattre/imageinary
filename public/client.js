@@ -272,8 +272,9 @@ socket.on('newTurn', ({ drawer, drawerId, round }) => {
     document.getElementById('timer').textContent = getTimeString('--');
     document.getElementById('timer').style.color = '';
     
-    // Show drawing tools only for the drawer
+    // Show drawing tools only for the drawer, but show canvas for everyone
     document.getElementById('toolbar').style.display = socket.id === drawerId ? 'block' : 'none';
+    document.getElementById('canvas').style.display = 'block';
     
     // Reset color picker state
     isEraser = false;
@@ -323,16 +324,58 @@ socket.on('newMessage', ({ username, message, timestamp, color }) => {
     chatDiv.scrollTop = chatDiv.scrollHeight; // Auto-scroll to bottom
 });
 
-socket.on('startVoting', (imageSrc) => {
-    document.getElementById('generatedImage').src = imageSrc;
-    document.getElementById('voting').style.display = 'block';
-    document.querySelectorAll('#voting button').forEach(btn => btn.disabled = false);
+socket.on('startVoting', (generatedImages) => {
+    // Hide drawing elements while voting
+    document.getElementById('toolbar').style.display = 'none';
+    document.getElementById('canvas').style.display = 'none';
+    
+    // Show the voting area
+    const votingArea = document.getElementById('voting');
+    const votingImagesContainer = document.getElementById('voting-images');
+    votingImagesContainer.innerHTML = ''; // Clear any previous images
+    
+    // Create an element for each generated image
+    generatedImages.forEach(imageData => {
+        const imageContainer = document.createElement('div');
+        imageContainer.className = 'image-vote-container';
+        
+        // Add the image
+        const img = document.createElement('img');
+        img.src = imageData.imageSrc;
+        img.className = 'vote-image';
+        
+        // Add the player info and guess
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'image-info';
+        infoDiv.innerHTML = `<strong>${imageData.playerName}</strong>: "${imageData.guess}"`;
+        
+        // Add the vote button
+        const voteButton = document.createElement('button');
+        voteButton.textContent = 'Vote';
+        voteButton.className = 'vote-button';
+        voteButton.onclick = () => vote(imageData.playerId);
+        
+        // Add all elements to the container
+        imageContainer.appendChild(img);
+        imageContainer.appendChild(infoDiv);
+        imageContainer.appendChild(voteButton);
+        
+        // Add the container to the voting area
+        votingImagesContainer.appendChild(imageContainer);
+    });
+    
+    votingArea.style.display = 'block';
 });
 
-function vote(choice) {
+function vote(imagePlayerId) {
     const roomCode = document.getElementById('currentRoom').textContent;
-    socket.emit('vote', { roomCode, vote: choice });
-    document.querySelectorAll('#voting button').forEach(btn => btn.disabled = true);
+    socket.emit('vote', { roomCode, imagePlayerId });
+    
+    // Disable all vote buttons after voting
+    document.querySelectorAll('.vote-button').forEach(btn => {
+        btn.disabled = true;
+        btn.classList.add('voted');
+    });
 }
 
 socket.on('votingResults', ({ message, scores }) => {

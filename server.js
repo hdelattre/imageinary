@@ -117,11 +117,14 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('vote', ({ roomCode, vote }) => {
+    socket.on('vote', ({ roomCode, imagePlayerId }) => {
         const game = games.get(roomCode);
         if (game && game.voting) {
-            game.votes.set(socket.id, vote);
-            if (game.votes.size === game.players.size) {
+            // Store which player's image was voted for
+            game.votes.set(socket.id, imagePlayerId);
+            
+            // If everyone has voted, end voting early
+            if (game.votes.size === game.players.size - 1) { // -1 for the drawer who doesn't vote
                 clearTimeout(game.votingTimer);
                 tallyVotes(roomCode);
             }
@@ -177,7 +180,7 @@ function initializeGame(roomCode, socketId, username) {
         chatHistory: [],
         lastMessages: new Map(),
         votes: new Map(),
-        imageSrc: '',
+        generatedImages: [],
         voting: false,
     });
     startTurn(roomCode);
@@ -248,58 +251,100 @@ async function generateNewImage(roomCode) {
             throw new Error('Invalid drawingData format: no base64 content found');
         }
 
-        const guesses = Array.from(game.lastMessages.values()).filter(guess => guess);
-        const prompt = `The provided image is a Pictionary sketch. Use the exact same shape/sihouette but draw it realistically and looking like the following guess: ${guesses.join(', ')}`;
+        // Generate an array of valid guesses with player info
+        const guessesWithPlayers = [];
+        game.lastMessages.forEach((guess, playerId) => {
+            if (guess && playerId !== game.currentDrawer) {
+                guessesWithPlayers.push({
+                    playerId,
+                    playerName: game.players.get(playerId).username,
+                    guess
+                });
+            }
+        });
 
-        // Send request to the model
-        const response = await model.generateContent([
-            prompt,
-            { inlineData: { data: base64Data, mimeType: 'image/png' } },
-        ]);
-
-        // Log the full response for debugging
-        console.log('Full API Response:', JSON.stringify(response, null, 2));
-
-        if (response.response.candidates.length === 0) {
-            console.error('No candidates returned by the model');
-            throw new Error('Model returned no candidates');
+        // No guesses, no images to generate
+        if (guessesWithPlayers.length === 0) {
+            throw new Error('No valid guesses to generate images from');
         }
 
-        // Extract the generated image
-        const candidate = response.response.candidates[0];
+        // Generate images for each guess
+        const generatedImages = [];
+        for (const guessData of guessesWithPlayers) {
+            const prompt = `The provided image is a Pictionary sketch. Use the exact same shape/sihouette but draw it realistically and looking like the following guess: ${guessData.guess}`;
+            
+            try {
+                // Send request to the model
+                const response = await model.generateContent([
+                    prompt,
+                    { inlineData: { data: base64Data, mimeType: 'image/png' } },
+                ]);
 
-        if (candidate.finishReason === 'RECITATION') {
-            console.log('Model rejected input due to RECITATION. Using original drawing as fallback.');
-            game.imageSrc = drawings.get(roomCode); // Fallback to original drawing
-            startVoting(roomCode);
+                if (response.response.candidates.length === 0) {
+                    console.error('No candidates returned by the model');
+                    continue;
+                }
+
+                // Extract the generated image
+                const candidate = response.response.candidates[0];
+
+                if (candidate.finishReason === 'RECITATION') {
+                    console.log('Model rejected input due to RECITATION. Skipping this image.');
+                    continue;
+                }
+
+                if (!candidate || !candidate.content || !candidate.content.parts) {
+                    console.error('No valid candidate content in response');
+                    continue;
+                }
+
+                const imagePart = candidate.content.parts.find(part => part.inlineData);
+                if (!imagePart || !imagePart.inlineData || !imagePart.inlineData.data) {
+                    console.error('No inline image data found in response');
+                    continue;
+                }
+
+                const imageData = imagePart.inlineData.data;
+                const buffer = Buffer.from(imageData, 'base64');
+                const filename = `generated-${roomCode}-${game.round}-${guessData.playerId}.png`;
+                const filePath = path.join(__dirname, 'public', 'generated', filename);
+
+                // Ensure the directory exists
+                fs.mkdirSync(path.dirname(filePath), { recursive: true });
+                fs.writeFileSync(filePath, buffer);
+
+                // Verify the output file
+                console.log(`Generated image saved: ${filePath}`);
+                
+                generatedImages.push({
+                    playerId: guessData.playerId,
+                    playerName: guessData.playerName,
+                    guess: guessData.guess,
+                    imageSrc: `/generated/${filename}`
+                });
+            } catch (error) {
+                console.error(`Error generating image for guess "${guessData.guess}":`, error.message);
+                continue;
+            }
+        }
+
+        // If we couldn't generate any images, inform the users
+        if (generatedImages.length === 0) {
+            io.to(roomCode).emit('error', 'Failed to generate any images');
             return;
         }
 
-        if (!candidate || !candidate.content || !candidate.content.parts) {
-            throw new Error('No valid candidate content in response');
-        }
-
-        const imagePart = candidate.content.parts.find(part => part.inlineData);
-        if (!imagePart || !imagePart.inlineData || !imagePart.inlineData.data) {
-            throw new Error('No inline image data found in response');
-        }
-
-        const imageData = imagePart.inlineData.data;
-        const buffer = Buffer.from(imageData, 'base64');
-        const filename = `generated-${roomCode}-${game.round}.png`;
-        const filePath = path.join(__dirname, 'public', 'generated', filename);
-
-        // Ensure the directory exists
-        fs.mkdirSync(path.dirname(filePath), { recursive: true });
-        fs.writeFileSync(filePath, buffer);
-
-        // Verify the output file
-        console.log(`Generated image saved: ${filePath}`);
-        game.imageSrc = `/generated/${filename}`;
+        // Store the generated images in the game state
+        game.generatedImages = generatedImages;
+        
+        // Start the voting phase
         startVoting(roomCode);
     } catch (error) {
-        console.error('Error generating image:', error.message, error.stack);
-        io.to(roomCode).emit('error', 'Failed to generate image');
+        console.error('Error in image generation process:', error.message, error.stack);
+        io.to(roomCode).emit('error', 'Failed to generate images');
+        
+        // Skip to next turn
+        startTurn(roomCode);
     }
 }
 
@@ -308,7 +353,11 @@ function startVoting(roomCode) {
     if (!game) return;
 
     game.voting = true;
-    io.to(roomCode).emit('startVoting', game.imageSrc);
+    game.votes = new Map(); // Reset votes
+    
+    // Send all generated images to clients for voting
+    io.to(roomCode).emit('startVoting', game.generatedImages);
+    
     game.votingTimerEnd = Date.now() + 20000;
     game.votingTimer = setTimeout(() => tallyVotes(roomCode), 20000);
     
@@ -321,28 +370,52 @@ function tallyVotes(roomCode) {
     if (!game) return;
 
     game.voting = false;
-    const likes = Array.from(game.votes.values()).filter(v => v === 'like').length;
-    const totalPlayers = game.players.size;
-    let resultMessage = '';
-    if (likes > totalPlayers / 2) {
-        game.players.get(game.currentDrawer).score += 1;
-        resultMessage = `The image got ${likes} likes out of ${totalPlayers}. Drawer gets a point!`;
-    } else {
-        const correctGuessers = [];
-        game.lastMessages.forEach((message, id) => {
-            if (message.toLowerCase() === game.currentPrompt.toLowerCase()) {
-                correctGuessers.push(id);
-            }
-        });
-        if (correctGuessers.length > 0) {
-            correctGuessers.forEach(id => {
-                game.players.get(id).score += 1;
-            });
-            resultMessage = `No majority likes. Correct guessers get points!`;
-        } else {
-            resultMessage = `No majority likes and no correct guesses. No points awarded.`;
+    
+    // Count votes for each image
+    const voteCount = new Map();
+    game.generatedImages.forEach(image => {
+        voteCount.set(image.playerId, 0);
+    });
+    
+    // Tally up the votes
+    game.votes.forEach((imagePlayerId, voterId) => {
+        if (voteCount.has(imagePlayerId)) {
+            voteCount.set(imagePlayerId, voteCount.get(imagePlayerId) + 1);
         }
+    });
+    
+    // Find the winner(s)
+    let maxVotes = 0;
+    const winners = [];
+    
+    voteCount.forEach((votes, playerId) => {
+        if (votes > maxVotes) {
+            maxVotes = votes;
+            winners.length = 0;
+            winners.push(playerId);
+        } else if (votes === maxVotes && maxVotes > 0) {
+            winners.push(playerId);
+        }
+    });
+    
+    // Award points to winners
+    let resultMessage = '';
+    if (winners.length > 0 && maxVotes > 0) {
+        winners.forEach(winnerId => {
+            game.players.get(winnerId).score += 1;
+        });
+        
+        if (winners.length === 1) {
+            const winnerName = game.players.get(winners[0]).username;
+            resultMessage = `${winnerName}'s image won with ${maxVotes} votes! They get a point!`;
+        } else {
+            const winnerNames = winners.map(id => game.players.get(id).username).join(', ');
+            resultMessage = `Tie! ${winnerNames} each get a point with ${maxVotes} votes!`;
+        }
+    } else {
+        resultMessage = `No votes or tie with 0 votes. No points awarded.`;
     }
+    
     io.to(roomCode).emit('votingResults', {
         message: resultMessage,
         scores: Array.from(game.players.entries()).map(([id, data]) => ({ 
@@ -351,6 +424,7 @@ function tallyVotes(roomCode) {
             color: data.color 
         })),
     });
+    
     setTimeout(() => {
         game.round++;
         startTurn(roomCode);

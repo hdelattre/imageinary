@@ -895,6 +895,12 @@ function viewRoomPrompt() {
 
 // Function to show prompt in modal
 function showPromptModal(promptText) {
+    // Hide the view prompt button while the modal is open
+    const viewPromptBtn = document.getElementById('viewPromptBtn');
+    if (viewPromptBtn) {
+        viewPromptBtn.style.display = 'none';
+    }
+    
     const viewPromptText = document.getElementById('viewPromptText');
     viewPromptText.textContent = promptText;
     document.getElementById('promptViewModal').style.display = 'flex';
@@ -906,6 +912,12 @@ window.addEventListener('load', () => {
     if (closePromptViewBtn) {
         closePromptViewBtn.addEventListener('click', () => {
             document.getElementById('promptViewModal').style.display = 'none';
+            
+            // Show the view prompt button again when the modal is closed
+            const viewPromptBtn = document.getElementById('viewPromptBtn');
+            if (viewPromptBtn) {
+                viewPromptBtn.style.display = '';
+            }
         });
     }
 });
@@ -927,6 +939,12 @@ let isEditingRoomPrompt = false;
 
 // Function to open prompt editor with a specific prompt
 function openPromptEditorWithPrompt(prompt) {
+    // Hide the view prompt button while the editor is open
+    const viewPromptBtn = document.getElementById('viewPromptBtn');
+    if (viewPromptBtn) {
+        viewPromptBtn.style.display = 'none';
+    }
+    
     const promptTemplate = document.getElementById('promptTemplate');
     
     // Save the current room prompt for reference
@@ -1005,6 +1023,15 @@ function savePrompt() {
     
     // Close the modal
     document.getElementById('promptEditorModal').style.display = 'none';
+    
+    // Show the view prompt button again when saving
+    if (isEditingRoomPrompt) {
+        const viewPromptBtn = document.getElementById('viewPromptBtn');
+        if (viewPromptBtn) {
+            viewPromptBtn.style.display = '';
+        }
+    }
+    
     return true;
 }
 
@@ -1062,6 +1089,12 @@ function initPromptEditor() {
         document.getElementById('promptEditorModal').style.display = 'none';
         // Reset the editing state
         isEditingRoomPrompt = false;
+        
+        // Show the view prompt button again when the editor is closed
+        const viewPromptBtn = document.getElementById('viewPromptBtn');
+        if (viewPromptBtn) {
+            viewPromptBtn.style.display = '';
+        }
     });
     
     // Unified handlers for both regular and room prompts

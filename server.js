@@ -48,7 +48,7 @@ io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
 
     socket.on('createRoom', (username, customPrompt, isPublic = false) => {
-        username = sanitizeMessage(username, '');
+        username = sanitizeMessage(username, '', 24);
         
         const roomCode = uuidv4().slice(0, 6).toUpperCase();
         socket.join(roomCode);
@@ -218,7 +218,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('joinRoom', ({ roomCode, username }) => {
-        username = sanitizeMessage(username, '');
+        username = sanitizeMessage(username, '', 24);
         
         if (games.has(roomCode)) {
             socket.join(roomCode);
@@ -377,7 +377,16 @@ io.on('connection', (socket) => {
     });
 });
 
-function sanitizeMessage(message, allowedPunctuation = '') {
+function sanitizeMessage(message, allowedPunctuation = '', maxLength = null) {
+    // Trim whitespace first
+    message = message.trim();
+    
+    // Apply length limit if provided
+    if (maxLength !== null && typeof maxLength === 'number') {
+        message = message.slice(0, maxLength);
+    }
+    
+    // Then sanitize characters
     const escapedPunctuation = allowedPunctuation.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
     const regex = new RegExp(`[^a-zA-Z0-9\\s${escapedPunctuation}]`, 'g');
     return message.replace(regex, '');
@@ -619,7 +628,7 @@ async function generateNewImage(roomCode) {
                 
                 generatedImages.push({
                     playerId: guessData.playerId,
-                    playerName: guessData.playerName,
+                    playerName: game.players.get(guessData.playerId).username,
                     guess: guessData.guess,
                     imageSrc: `/generated/${filename}` // Using the sanitized filename
                 });

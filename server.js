@@ -42,13 +42,93 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
 
-    socket.on('createRoom', (username) => {
+    socket.on('createRoom', (username, customPrompt) => {
         username = sanitizeMessage(username, '');
         
         const roomCode = uuidv4().slice(0, 6).toUpperCase();
         socket.join(roomCode);
+        
+        // Initialize the game
         initializeGame(roomCode, socket.id, username);
+        
+        // Store custom prompt if provided
+        if (customPrompt) {
+            const game = games.get(roomCode);
+            game.customPrompt = sanitizeMessage(customPrompt, './!?-,\'');
+        }
+        
         socket.emit('roomCreated', { roomCode, username, inviteLink: `http://localhost:${port}/?room=${roomCode}` });
+    });
+    
+    socket.on('testGenerateImage', async ({ drawingData, guess, promptTemplate }) => {
+        try {
+            // Extract base64 string from data URL
+            const base64Data = drawingData.split(',')[1];
+            if (!base64Data) {
+                socket.emit('testImageResult', { error: 'Invalid drawing data' });
+                return;
+            }
+            
+            // Generate prompt using the template and guess
+            if (!promptTemplate || !promptTemplate.includes('{guess}')) {
+                socket.emit('testImageResult', { error: 'Invalid prompt template: Must include {guess} placeholder' });
+                return;
+            }
+            
+            const generationPrompt = promptTemplate.replace('{guess}', guess);
+            
+            // Send request to the model
+            const response = await model.generateContent([
+                generationPrompt,
+                { inlineData: { data: base64Data, mimeType: 'image/png' } },
+            ]);
+            
+            if (response.response.candidates.length === 0) {
+                socket.emit('testImageResult', { error: 'No candidates returned by the model' });
+                return;
+            }
+            
+            // Extract the generated image
+            const candidate = response.response.candidates[0];
+            
+            if (candidate.finishReason === 'RECITATION') {
+                socket.emit('testImageResult', { error: 'Model rejected input' });
+                return;
+            }
+            
+            if (!candidate || !candidate.content || !candidate.content.parts) {
+                socket.emit('testImageResult', { error: 'Invalid response from model' });
+                return;
+            }
+            
+            const imagePart = candidate.content.parts.find(part => part.inlineData);
+            if (!imagePart || !imagePart.inlineData || !imagePart.inlineData.data) {
+                socket.emit('testImageResult', { error: 'No image data found in response' });
+                return;
+            }
+            
+            const imageData = imagePart.inlineData.data;
+            const buffer = Buffer.from(imageData, 'base64');
+            
+            // Generate a unique filename for the test image
+            const testId = Date.now().toString();
+            const filename = `test-${testId}.png`;
+            const filePath = path.join(__dirname, 'public', 'generated', filename);
+            
+            // Ensure the directory exists
+            fs.mkdirSync(path.dirname(filePath), { recursive: true });
+            fs.writeFileSync(filePath, buffer);
+            
+            // Send back the image URL
+            socket.emit('testImageResult', { 
+                imageSrc: `/generated/${filename}`,
+                success: true
+            });
+            
+        } catch (error) {
+            console.error('Error generating test image:', error);
+            socket.emit('testImageResult', { error: 'Failed to generate image: ' + error.message });
+        }
     });
 
     socket.on('joinRoom', ({ roomCode, username }) => {
@@ -57,6 +137,7 @@ io.on('connection', (socket) => {
         if (games.has(roomCode)) {
             socket.join(roomCode);
             const game = games.get(roomCode);
+
             let uniqueUsername = username;
             let counter = 2;
             while (Array.from(game.players.values()).some(p => p.username === uniqueUsername)) {
@@ -195,6 +276,8 @@ function initializeGame(roomCode, socketId, username) {
         votes: new Map(),
         generatedImages: [],
         voting: false,
+        // Default AI generation prompt template
+        customPrompt: "Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. It must look like the provided sketch! Do not modify important shapes/silhouettes in the sketch, just fill them in. Make it look like the provided guess: {guess}"
     });
     startTurn(roomCode);
 }
@@ -284,7 +367,12 @@ async function generateNewImage(roomCode) {
         // Generate images for each guess
         const generatedImages = [];
         for (const guessData of guessesWithPlayers) {
-            const generationPrompt = `Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. Make it look like the provided guess: ${guessData.guess}`;
+            // Use custom prompt template if available, otherwise use default
+            const promptTemplate = game.customPrompt || 
+                "Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. It must look like the provided sketch! Do not modify important shapes/silhouettes in the sketch, just fill them in. Make it look like the provided guess: {guess}";
+            
+            // Replace the placeholder with the actual guess
+            const generationPrompt = promptTemplate.replace('{guess}', guessData.guess);
             
             try {
                 // Send request to the model

@@ -7,6 +7,12 @@ let undoStack = [];
 let lastDrawingSent = null;
 let drawingUpdateBuffer = 0;
 
+// Default prompt for AI generation
+const defaultPrompt = "Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. It must look like the provided sketch! Do not modify important shapes/silhouettes in the sketch, just fill them in. Make it look like the provided guess: {guess}";
+
+// Get custom prompt from localStorage or use default
+let customPrompt = localStorage.getItem('imageinary_custom_prompt') || defaultPrompt;
+
 ctx.lineCap = 'round';
 ctx.lineJoin = 'round';
 
@@ -36,6 +42,9 @@ window.addEventListener('load', () => {
         // Set a random placeholder name
         usernameInput.placeholder = getRandomName();
     }
+    
+    // Initialize the prompt editor functionality
+    initPromptEditor();
     
     // Add keystroke handlers for the lobby form
     usernameInput.addEventListener('keypress', (e) => {
@@ -166,7 +175,8 @@ function createRoom() {
         if (!isAutoName) {
             localStorage.setItem('imageinary_username', username);
         }
-        socket.emit('createRoom', username);
+        // Include custom prompt when creating room
+        socket.emit('createRoom', username, customPrompt);
     }
 }
 
@@ -192,6 +202,7 @@ function joinRoom() {
         if (!isAutoName) {
             localStorage.setItem('imageinary_username', username);
         }
+        // Include custom prompt when joining room
         socket.emit('joinRoom', { roomCode, username });
     }
 }
@@ -646,4 +657,167 @@ function copyRoomLink() {
     const roomCode = document.getElementById('currentRoom').textContent;
     const roomLink = `${window.location.origin}/?room=${roomCode}`;
     copyToClipboard(roomLink);
+}
+
+// Prompt Editor functionality
+function initPromptEditor() {
+    // Set initial prompt in the editor
+    const promptTemplate = document.getElementById('promptTemplate');
+    promptTemplate.value = customPrompt;
+    
+    // Setup test canvas
+    const testCanvas = document.getElementById('testCanvas');
+    const testCtx = testCanvas.getContext('2d');
+    testCtx.fillStyle = 'white';
+    testCtx.fillRect(0, 0, testCanvas.width, testCanvas.height);
+    testCtx.lineCap = 'round';
+    testCtx.lineJoin = 'round';
+    
+    let testDrawing = false;
+    
+    // Event handlers for the prompt editor
+    document.getElementById('promptEditorBtn').addEventListener('click', () => {
+        document.getElementById('promptEditorModal').style.display = 'flex';
+    });
+    
+    document.getElementById('closePromptEditorBtn').addEventListener('click', () => {
+        document.getElementById('promptEditorModal').style.display = 'none';
+    });
+    
+    document.getElementById('savePromptBtn').addEventListener('click', () => {
+        const newPrompt = promptTemplate.value.trim();
+        if (!newPrompt) {
+            alert('Prompt cannot be empty!');
+            return;
+        }
+        
+        if (!newPrompt.includes('{guess}')) {
+            alert('Prompt must include {guess} placeholder!');
+            return;
+        }
+        
+        customPrompt = newPrompt;
+        localStorage.setItem('imageinary_custom_prompt', newPrompt);
+        alert('Prompt saved successfully! It will be used in your next game.');
+    });
+    
+    document.getElementById('resetPromptBtn').addEventListener('click', () => {
+        promptTemplate.value = defaultPrompt;
+        customPrompt = defaultPrompt;
+        localStorage.setItem('imageinary_custom_prompt', defaultPrompt);
+        alert('Prompt reset to default!');
+    });
+    
+    // Test canvas drawing events
+    testCanvas.addEventListener('mousedown', (e) => {
+        testDrawing = true;
+        const rect = testCanvas.getBoundingClientRect();
+        const scaleX = testCanvas.width / rect.width;
+        const scaleY = testCanvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+        testCtx.beginPath();
+        testCtx.moveTo(x, y);
+    });
+    
+    testCanvas.addEventListener('mousemove', (e) => {
+        if (!testDrawing) return;
+        const rect = testCanvas.getBoundingClientRect();
+        const scaleX = testCanvas.width / rect.width;
+        const scaleY = testCanvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+        testCtx.strokeStyle = document.getElementById('testColorPicker').value;
+        testCtx.lineWidth = 3;
+        testCtx.lineTo(x, y);
+        testCtx.stroke();
+    });
+    
+    testCanvas.addEventListener('mouseup', () => {
+        testDrawing = false;
+    });
+    
+    testCanvas.addEventListener('mouseleave', () => {
+        testDrawing = false;
+    });
+    
+    // Touch events for test canvas
+    testCanvas.addEventListener('touchstart', handleTestTouchStart, { passive: false });
+    testCanvas.addEventListener('touchmove', handleTestTouchMove, { passive: false });
+    testCanvas.addEventListener('touchend', handleTestTouchEnd, { passive: false });
+    
+    function handleTestTouchStart(e) {
+        e.preventDefault();
+        testDrawing = true;
+        const touch = e.touches[0];
+        const rect = testCanvas.getBoundingClientRect();
+        const scaleX = testCanvas.width / rect.width;
+        const scaleY = testCanvas.height / rect.height;
+        const x = (touch.clientX - rect.left) * scaleX;
+        const y = (touch.clientY - rect.top) * scaleY;
+        testCtx.beginPath();
+        testCtx.moveTo(x, y);
+    }
+    
+    function handleTestTouchMove(e) {
+        e.preventDefault();
+        if (!testDrawing) return;
+        const touch = e.touches[0];
+        const rect = testCanvas.getBoundingClientRect();
+        const scaleX = testCanvas.width / rect.width;
+        const scaleY = testCanvas.height / rect.height;
+        const x = (touch.clientX - rect.left) * scaleX;
+        const y = (touch.clientY - rect.top) * scaleY;
+        testCtx.strokeStyle = document.getElementById('testColorPicker').value;
+        testCtx.lineWidth = 3;
+        testCtx.lineTo(x, y);
+        testCtx.stroke();
+    }
+    
+    function handleTestTouchEnd(e) {
+        e.preventDefault();
+        testDrawing = false;
+    }
+    
+    // Test buttons and generation
+    document.getElementById('testClearBtn').addEventListener('click', () => {
+        testCtx.fillStyle = 'white';
+        testCtx.fillRect(0, 0, testCanvas.width, testCanvas.height);
+        document.getElementById('testImageContainer').innerHTML = '';
+    });
+    
+    document.getElementById('testGenerateBtn').addEventListener('click', () => {
+        const guess = document.getElementById('testGuessInput').value.trim();
+        if (!guess) {
+            alert('Please enter a sample guess!');
+            return;
+        }
+        
+        const drawingData = testCanvas.toDataURL();
+        const promptToUse = promptTemplate.value.trim();
+        
+        if (!promptToUse.includes('{guess}')) {
+            alert('Prompt must include {guess} placeholder!');
+            return;
+        }
+        
+        // Show loading indicator
+        document.getElementById('testImageContainer').innerHTML = '<div class="loading">Generating image...</div>';
+        
+        // Send to server for test generation
+        socket.emit('testGenerateImage', { 
+            drawingData, 
+            guess, 
+            promptTemplate: promptToUse
+        });
+    });
+    
+    // Handle the result from the server
+    socket.on('testImageResult', (data) => {
+        if (data.error) {
+            document.getElementById('testImageContainer').innerHTML = `<div class="error">${data.error}</div>`;
+        } else {
+            document.getElementById('testImageContainer').innerHTML = `<img src="${data.imageSrc}" alt="Generated test image" class="test-image">`;
+        }
+    });
 }

@@ -21,6 +21,50 @@
                     <button onclick="joinRoom()" class="secondary-btn">Join Game</button>
                 </div>
             </div>
+            <div class="separator">
+                <span>or</span>
+            </div>
+            <button id="promptEditorBtn" class="secondary-btn">Customize AI Prompt</button>
+        </div>
+        
+        <!-- Prompt Editor Modal -->
+        <div id="promptEditorModal" class="modal" style="display: none;">
+            <div class="modal-content prompt-editor">
+                <h2>AI Generation Prompt Editor</h2>
+                
+                <div class="editor-section">
+                    <h3>Current Prompt Template</h3>
+                    <textarea id="promptTemplate" rows="5" placeholder="Enter your custom prompt template..."></textarea>
+                    <p class="prompt-help">Use <code>{guess}</code> as a placeholder for player guesses.</p>
+                    <div class="editor-controls">
+                        <button id="savePromptBtn" class="primary-btn">Save Prompt</button>
+                        <button id="resetPromptBtn" class="secondary-btn">Reset to Default</button>
+                    </div>
+                </div>
+                
+                <div class="editor-section">
+                    <h3>Test Your Prompt</h3>
+                    <div class="test-area">
+                        <div class="test-canvas-container">
+                            <canvas id="testCanvas" width="300" height="200"></canvas>
+                            <div class="test-tools">
+                                <input type="color" id="testColorPicker" value="#000000">
+                                <button id="testClearBtn">Clear</button>
+                            </div>
+                        </div>
+                        <div class="test-input">
+                            <input type="text" id="testGuessInput" placeholder="Enter a sample guess...">
+                            <button id="testGenerateBtn" class="primary-btn">Generate Test Image</button>
+                        </div>
+                    </div>
+                    <div id="testResult" class="test-result">
+                        <h4>Generated Result</h4>
+                        <div id="testImageContainer"></div>
+                    </div>
+                </div>
+                
+                <button id="closePromptEditorBtn" class="close-btn">&times;</button>
+            </div>
         </div>
     </div>
 

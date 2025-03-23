@@ -249,7 +249,7 @@ async function generateNewImage(roomCode) {
         }
 
         const guesses = Array.from(game.lastMessages.values()).filter(guess => guess);
-        const prompt = `The provided image is a Pictionary sketch. Draw it realistically and looking like a ${guesses.join(', ')}`;
+        const prompt = `The provided image is a Pictionary sketch. Use the exact same shape/sihouette but draw it realistically and looking like the following guess: ${guesses.join(', ')}`;
 
         // Send request to the model
         const response = await model.generateContent([
@@ -259,6 +259,7 @@ async function generateNewImage(roomCode) {
 
         // Log the full response for debugging
         console.log('Full API Response:', JSON.stringify(response, null, 2));
+
         if (response.response.candidates.length === 0) {
             console.error('No candidates returned by the model');
             throw new Error('Model returned no candidates');

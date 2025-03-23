@@ -531,7 +531,7 @@ function tallyVotes(roomCode) {
         if (winners.length === 1) {
             const winnerName = game.players.get(winners[0]).username;
             const votes = voteCount.get(winners[0]);
-            resultMessage = `${winnerName}'s image won with ${votes} votes (>${Math.floor(totalVoters/2)} needed)! They get a point!`;
+            resultMessage = `${winnerName}'s image won with ${votes} votes! They get a point!`;
         } else {
             const winnersList = winners.map(id => 
                 `${game.players.get(id).username} (${voteCount.get(id)} votes)`

@@ -45,7 +45,7 @@ body {
 #game h1 {
     color: #3498db;
     margin: 0 0 15px 0;
-    font-size: 32px;
+    font-size: 24px;
     text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
 }
 
@@ -172,20 +172,22 @@ button {
     max-width: 100%;
     box-sizing: border-box;
     display: block;
-    margin: 0 auto 15px auto;
+    margin: 0 auto 0 auto;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     width: 600px;
     height: 400px;
 }
 
 #gameInfo {
-    margin: 10px 0;
+    margin: 8px 0;
     display: flex;
     justify-content: space-around;
-    padding: 8px;
+    align-items: center;
+    padding: 5px 8px;
     background: #f0f0f0;
     border-radius: 5px;
-    font-size: 1.1em;
+    font-size: 1em;
+    min-height: 32px;
 }
 
 #gameInfo span {
@@ -195,11 +197,14 @@ button {
 #timer {
     font-weight: bold;
     min-width: 70px;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 2px 8px;
     background-color: #f5f5f5;
     border-radius: 4px;
     border: 1px solid #ddd;
+    height: 24px;
 }
 
 .copyable {
@@ -216,7 +221,7 @@ button {
     display: flex;
     height: 150px; /* Reduced height for smaller screens */
     min-height: 100px;
-    max-height: 200px;
+    max-height: 400px;
     border: 1px solid #333;
     background: #f9f9f9;
     margin-bottom: 0;
@@ -419,7 +424,6 @@ button {
     top: 0;
     z-index: 100;
     width: auto;
-    min-height: 40px;
     white-space: nowrap;
 }
 
@@ -456,7 +460,7 @@ button {
 /* Media queries for responsive design */
 @media (max-height: 800px) {
     #game h1 {
-        font-size: 28px;
+        font-size: 22px;
         margin: 0 0 10px 0;
     }
     
@@ -469,7 +473,7 @@ button {
     }
     
     .chat-container {
-        height: 120px;
+        height: 200px;
     }
     
     #voting-images {
@@ -483,7 +487,7 @@ button {
 
 @media (max-height: 700px) {
     #game h1 {
-        font-size: 24px;
+        font-size: 20px;
         margin: 0 0 5px 0;
     }
     
@@ -502,7 +506,7 @@ button {
     }
     
     .chat-container {
-        height: 100px;
+        height: 160px;
     }
     
     #toolbar {
@@ -527,9 +531,11 @@ button {
     
     /* Compactify the game info section */
     #gameInfo {
-        padding: 6px 2px;
+        padding: 4px 2px;
         background: #f8f8f8;
         border-radius: 4px;
+        align-items: center;
+        min-height: 30px;
     }
 
     /* Stack chat and players vertically */
@@ -607,8 +613,12 @@ button {
         gap: 8px;
     }
     
-    #lobby h1, #game h1 {
+    #lobby h1 {
         font-size: 24px;
+    }
+
+    #game h1 {
+        font-size: 18px;
     }
 }
 
@@ -618,16 +628,21 @@ button {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 6px;
-        align-items: start;
+        align-items: center;
+        justify-items: center;
     }
     
     /* Style the grid items */
     .game-info-item {
-        padding: 4px;
+        padding: 2px 4px;
         border-radius: 3px;
         background-color: rgba(255, 255, 255, 0.6);
         text-align: center;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        min-height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     
     /* Ensure room container stays together */
@@ -640,7 +655,7 @@ button {
 
 /* Ensure touch-friendly button sizes globally */
 button {
-    min-height: 36px;
+    min-height: 32px;
 }
 
 #toolbar button {
@@ -706,8 +721,11 @@ body {
 
 /* Game info item and room styles */
 .game-info-item {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     margin: 0 2px;
+    min-height: 28px;
 }
 
 .room-container {
@@ -718,8 +736,8 @@ body {
 }
 
 .icon-btn {
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     padding: 0;
     background: transparent;
     border: 1px solid #ddd;

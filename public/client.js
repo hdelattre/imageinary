@@ -393,10 +393,6 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     const playersDiv = document.getElementById('players');
     playersDiv.innerHTML = ''; // Clear existing content
     
-    const titleEl = document.createElement('strong');
-    titleEl.textContent = 'Players';
-    playersDiv.appendChild(titleEl);
-    
     // Add each player with proper DOM methods to prevent XSS
     players.forEach(p => {
         const playerDiv = document.createElement('div');

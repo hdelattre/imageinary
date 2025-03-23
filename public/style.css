@@ -516,6 +516,107 @@ button {
     }
 }
 
+/* Responsive design for mobile devices */
+@media (max-width: 600px) {
+    /* Adjust canvas to fit smaller screens */
+    #canvas {
+        width: 100%;
+        height: auto;
+        max-width: 600px;
+        max-height: 400px;
+    }
+
+    /* Stack chat and players vertically */
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        max-height: none; /* Remove fixed height constraint */
+        grid-template-columns: 1fr;
+    }
+
+    #players {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #ccc;
+        padding: 8px;
+        height: 120px;
+    }
+
+    #chat {
+        width: 100%;
+        padding: 8px;
+        height: 180px;
+    }
+
+    /* Adjust toolbar for wrapping and smaller buttons */
+    #toolbar {
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 6px;
+        width: 100%;
+    }
+
+    #toolbar button,
+    #toolbar select,
+    #toolbar input {
+        margin: 2px;
+        padding: 8px 6px;
+        font-size: 12px;
+    }
+
+    /* Ensure game container adapts */
+    #game {
+        padding: 10px;
+        max-width: 100%;
+    }
+
+    /* Make game info more compact */
+    #gameInfo {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 5px;
+    }
+
+    #gameInfo span {
+        margin: 5px 0;
+    }
+
+    /* Voting images in a single column */
+    #voting-images {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Adjust lobby form for smaller screens */
+    .lobby-form {
+        width: 90%;
+        padding: 15px;
+    }
+    
+    .join-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    #lobby h1, #game h1 {
+        font-size: 24px;
+    }
+}
+
+/* Ensure touch-friendly button sizes globally */
+button {
+    min-height: 36px;
+}
+
+#toolbar button {
+    min-height: 28px;
+}
+
+/* Add padding at bottom to prevent keyboard overlap */
+body {
+    padding-bottom: 20vh;
+}
+
 /* Modal styles for URL sharing */
 .modal {
     position: fixed;

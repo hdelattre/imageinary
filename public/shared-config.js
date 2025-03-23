@@ -1,7 +1,7 @@
 // Shared configuration between client and server
 const PROMPT_CONFIG = {
     // Default prompt for AI generation
-    DEFAULT_PROMPT: "Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. It must look like the provided sketch! Do not modify important shapes/silhouettes in the sketch, just fill them in. Make it look like the provided guess: {guess}",
+    DEFAULT_PROMPT: "Generate an image of {guess}, meticulously shaped to fit the exact outer silhouette and proportions of the provided user drawing. Do not modify the fundamental shape or aspect ratio of the sketch in any way. Fill this constrained form with details to realistically resemble {guess}. The final artwork must have the same overall outline as the sketch, with {guess} elements adapted to this distorted shape. Do not include any background.",
     MAX_PROMPT_LENGTH: 1024, // Maximum length of prompt in characters
     VALID_CHARS: '{}./!?-,\'',
     // Function to valid/clean up prompt

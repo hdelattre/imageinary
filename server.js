@@ -184,7 +184,12 @@ io.on('connection', (socket) => {
 
     socket.on('sendMessage', ({ roomCode, message }) => {
         const game = games.get(roomCode);
-        if (game && socket.id !== game.currentDrawer) {
+        if (game) {
+            // Allow drawer to send messages if in voting phase, otherwise continue blocking
+            if (socket.id === game.currentDrawer && !game.voting) {
+                return; // Drawer can't chat during drawing phase
+            }
+            
             const now = Date.now();
             const lastTime = lastMessageTimes.get(socket.id) || 0;
             

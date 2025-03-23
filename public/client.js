@@ -418,7 +418,8 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
         playersDiv.appendChild(playerDiv);
     });
 
-    document.getElementById('chatInput').disabled = voting || socket.id === currentDrawer;
+    // Only disable chat for drawer during drawing phase (not during voting)
+    document.getElementById('chatInput').disabled = !voting && socket.id === currentDrawer;
     
     // Always show toolbar but disable it if not the drawer
     const toolbar = document.getElementById('toolbar');

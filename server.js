@@ -284,12 +284,12 @@ async function generateNewImage(roomCode) {
         // Generate images for each guess
         const generatedImages = [];
         for (const guessData of guessesWithPlayers) {
-            const prompt = `The provided image is a Pictionary sketch. Use the exact same shape/sihouette but draw it realistically and looking like the following guess: ${guessData.guess}`;
+            const generationPrompt = `Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. Make it look like the provided guess: ${guessData.guess}`;
             
             try {
                 // Send request to the model
                 const response = await model.generateContent([
-                    prompt,
+                    generationPrompt,
                     { inlineData: { data: base64Data, mimeType: 'image/png' } },
                 ]);
 

@@ -545,6 +545,26 @@ function startGame(roomCode, username, inviteLink) {
     document.body.style.overflow = 'auto';
 }
 
+// Function to update the players list
+function updatePlayersList(players) {
+    const playersDiv = document.getElementById('players');
+    playersDiv.innerHTML = ''; // Clear existing content
+    
+    // Add each player with proper DOM methods to prevent XSS
+    players.forEach(p => {
+        const playerDiv = document.createElement('div');
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.style.color = p.color || '#000';
+        nameSpan.textContent = p.username;
+        
+        playerDiv.appendChild(nameSpan);
+        playerDiv.appendChild(document.createTextNode(': ' + p.score));
+        
+        playersDiv.appendChild(playerDiv);
+    });
+}
+
 socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     document.getElementById('round').textContent = round;
     document.getElementById('drawer').textContent = players.find(p => p.id === currentDrawer).username;
@@ -608,22 +628,7 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     // Update current players
     currentPlayers = [...players];
 
-    const playersDiv = document.getElementById('players');
-    playersDiv.innerHTML = ''; // Clear existing content
-    
-    // Add each player with proper DOM methods to prevent XSS
-    players.forEach(p => {
-        const playerDiv = document.createElement('div');
-        
-        const nameSpan = document.createElement('span');
-        nameSpan.style.color = p.color || '#000';
-        nameSpan.textContent = p.username;
-        
-        playerDiv.appendChild(nameSpan);
-        playerDiv.appendChild(document.createTextNode(': ' + p.score));
-        
-        playersDiv.appendChild(playerDiv);
-    });
+    updatePlayersList(players);
 
     // Update prompt button styling when host changes
     const isHost = players.length > 0 && players[0].id === socket.id;
@@ -825,26 +830,7 @@ socket.on('votingResults', ({ message, scores }) => {
     document.getElementById('voteResults').textContent = message;
     document.getElementById('voteResults').style.display = 'block';
     
-    const playersDiv = document.getElementById('players');
-    playersDiv.innerHTML = ''; // Clear existing content
-    
-    const titleEl = document.createElement('strong');
-    titleEl.textContent = 'Players';
-    playersDiv.appendChild(titleEl);
-    
-    // Add each player with proper DOM methods to prevent XSS
-    scores.forEach(s => {
-        const playerDiv = document.createElement('div');
-        
-        const nameSpan = document.createElement('span');
-        nameSpan.style.color = s.color || '#000';
-        nameSpan.textContent = s.username;
-        
-        playerDiv.appendChild(nameSpan);
-        playerDiv.appendChild(document.createTextNode(': ' + s.score));
-        
-        playersDiv.appendChild(playerDiv);
-    });
+    updatePlayersList(scores);
     
     // Add system message about voting results
     addSystemMessage(message);

@@ -387,6 +387,12 @@ function initializeGame(roomCode, socketId, username, isPublic = false) {
 function startTurn(roomCode) {
     const game = games.get(roomCode);
     if (!game) return;
+    
+    // Check if there are any players in the game
+    if (game.players.size === 0) {
+        console.log(`No players in room ${roomCode}, can't start turn`);
+        return;
+    }
 
     game.voting = false;
     game.votes.clear();
@@ -399,6 +405,19 @@ function startTurn(roomCode) {
     
     const players = Array.from(game.players.keys());
     game.currentDrawer = players[(game.round - 1) % players.length];
+    
+    // Verify that the drawer exists in the player list
+    if (!game.players.has(game.currentDrawer)) {
+        console.log(`Current drawer ${game.currentDrawer} not found in players list, selecting new drawer`);
+        // Select a new drawer if the current one doesn't exist
+        if (players.length > 0) {
+            game.currentDrawer = players[0];
+        } else {
+            console.log(`No players available in room ${roomCode}`);
+            return;
+        }
+    }
+    
     game.currentPrompt = prompts[Math.floor(Math.random() * prompts.length)];
     io.to(game.currentDrawer).emit('newPrompt', game.currentPrompt);
     io.to(roomCode).emit('newTurn', {
@@ -431,7 +450,16 @@ function endRound(roomCode) {
     if (!game) return;
 
     clearTimeout(game.timer);
-    generateNewImage(roomCode);
+    
+    // Check if we have at least 2 players and valid guesses before generating images
+    if (game.players.size >= 2 && game.lastMessages.size > 0) {
+        generateNewImage(roomCode);
+    } else {
+        console.log(`Room ${roomCode} has insufficient players or guesses to generate images`);
+        // Skip to next turn if we can't generate images
+        game.round++;
+        startTurn(roomCode);
+    }
 }
 
 async function generateNewImage(roomCode) {
@@ -452,7 +480,8 @@ async function generateNewImage(roomCode) {
         // Generate an array of valid guesses with player info
         const guessesWithPlayers = [];
         game.lastMessages.forEach((guess, playerId) => {
-            if (guess && playerId !== game.currentDrawer) {
+            // Make sure the player still exists in the game
+            if (guess && playerId !== game.currentDrawer && game.players.has(playerId)) {
                 guessesWithPlayers.push({
                     playerId,
                     playerName: game.players.get(playerId).username,
@@ -461,9 +490,13 @@ async function generateNewImage(roomCode) {
             }
         });
 
-        // No guesses, no images to generate
-        if (guessesWithPlayers.length === 0) {
-            throw new Error('No valid guesses to generate images from');
+        // No guesses or insufficient players, skip to next turn
+        if (guessesWithPlayers.length === 0 || game.players.size < 2) {
+            console.log(`Room ${roomCode}: No valid guesses or not enough players. Skipping image generation.`);
+            // Move to next turn instead of throwing error
+            game.round++;
+            startTurn(roomCode);
+            return; // Exit the function
         }
 
         // Generate images for each guess
@@ -667,6 +700,12 @@ function nextTurn(roomCode) {
 function updateGameState(roomCode) {
     const game = games.get(roomCode);
     if (!game) return;
+    
+    // Ensure we have players
+    if (game.players.size === 0) {
+        console.log(`No players in room ${roomCode} to update game state`);
+        return;
+    }
 
     const players = Array.from(game.players.entries()).map(([id, data]) => ({
         id,
@@ -674,6 +713,14 @@ function updateGameState(roomCode) {
         score: data.score,
         color: data.color,
     }));
+    
+    // Ensure we have a valid drawer
+    if (!game.currentDrawer || !game.players.has(game.currentDrawer)) {
+        // If drawer is invalid, select first player
+        const firstPlayer = Array.from(game.players.keys())[0];
+        game.currentDrawer = firstPlayer;
+        console.log(`Invalid drawer, selecting new drawer: ${firstPlayer}`);
+    }
 
     io.to(roomCode).emit('gameState', {
         players,

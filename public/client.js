@@ -517,10 +517,21 @@ function startGame(roomCode, username, inviteLink) {
         clearInterval(roomsRefreshInterval);
         roomsRefreshInterval = null;
     }
+
+    // Reset currentPlayers
+    currentPlayers = [];
     
     document.getElementById('lobby').style.display = 'none';
     document.getElementById('game').style.display = 'block';
     document.getElementById('currentRoom').textContent = roomCode;
+    
+    // Add welcome message for the player (only visible to them)
+    const chatDiv = document.getElementById('chat');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'system-message welcome-message';
+    messageDiv.textContent = `Welcome to room ${roomCode}! You joined as ${username}`;
+    chatDiv.appendChild(messageDiv);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
     
     // Initialize timer
     document.getElementById('timer').textContent = getTimeString('--');
@@ -538,6 +549,64 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     document.getElementById('round').textContent = round;
     document.getElementById('drawer').textContent = players.find(p => p.id === currentDrawer).username;
     document.getElementById('drawer').dataset.id = currentDrawer;
+
+    if (currentPlayers.length > 0) {
+        // Detect player joins and leaves
+        const newPlayers = players.map(p => p.id);
+        const oldPlayers = currentPlayers.map(p => p.id);
+
+        // Find players who just joined (in new but not in old)
+        const joinedPlayers = players.filter(p => !oldPlayers.includes(p.id));
+
+        // Find players who just left (in old but not in new)
+        const leftPlayers = currentPlayers.filter(p => !newPlayers.includes(p.id));
+
+        // Add join messages
+        joinedPlayers.forEach(player => {
+            const chatDiv = document.getElementById('chat');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'system-message join-message';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.style.color = player.color || '#000';
+            nameSpan.textContent = player.username;
+            
+            messageDiv.appendChild(document.createTextNode('👋 '));
+            messageDiv.appendChild(nameSpan);
+            messageDiv.appendChild(document.createTextNode(' has joined the game'));
+            
+            chatDiv.appendChild(messageDiv);
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+        });
+
+        // Add leave messages
+        leftPlayers.forEach(player => {
+            const wasDrawer = player.id === currentDrawer;
+            
+            const chatDiv = document.getElementById('chat');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'system-message leave-message';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.style.color = player.color || '#000';
+            nameSpan.textContent = player.username;
+            
+            messageDiv.appendChild(document.createTextNode('🚶 '));
+            messageDiv.appendChild(nameSpan);
+            messageDiv.appendChild(document.createTextNode(' has left the game'));
+            
+            // Additional context if they were the drawer
+            if (wasDrawer) {
+                messageDiv.appendChild(document.createTextNode(' (was drawing)'));
+            }
+            
+            chatDiv.appendChild(messageDiv);
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+        });
+    }
+
+    // Update current players
+    currentPlayers = [...players];
 
     const playersDiv = document.getElementById('players');
     playersDiv.innerHTML = ''; // Clear existing content
@@ -591,6 +660,9 @@ function addSystemMessage(message) {
     chatDiv.appendChild(messageDiv);
     chatDiv.scrollTop = chatDiv.scrollHeight;
 }
+
+// Track players to detect joins and leaves
+let currentPlayers = [];
 
 socket.on('newTurn', ({ drawer, drawerId, round }) => {
     document.getElementById('drawer').textContent = drawer;

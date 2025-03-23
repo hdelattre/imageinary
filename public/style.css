@@ -59,6 +59,7 @@ body {
     flex-direction: column;
     min-height: calc(100vh - 20px);
     height: calc(100% - 20px);
+    max-height: 100vh; /* Prevent expanding beyond viewport height */
     overflow-y: auto;
     margin: 10px 0;
     position: relative;
@@ -380,7 +381,7 @@ button:active {
 .chat-container {
     position: relative;
     display: flex;
-    height: 250px;
+    height: auto;
     min-height: 150px;
     flex: 1;
     border: 1px solid #444;

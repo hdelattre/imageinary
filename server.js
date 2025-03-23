@@ -89,6 +89,14 @@ io.on('connection', (socket) => {
         socket.emit('publicRoomsList', roomsList);
     });
     
+    // Endpoint to get a room's prompt
+    socket.on('getRoomPrompt', (roomCode) => {
+        const game = games.get(roomCode);
+        if (game) {
+            socket.emit('roomPrompt', game.customPrompt);
+        }
+    });
+    
     socket.on('testGenerateImage', async ({ drawingData, guess, promptTemplate }) => {
         try {
             // Extract base64 string from data URL
@@ -686,7 +694,8 @@ function updatePublicRoomsList(roomCode) {
         playerCount: game.players.size,
         round: game.round,
         createdAt: game.createdAt,
-        hostName: Array.from(game.players.values())[0].username  // First player is the host
+        hostName: Array.from(game.players.values())[0].username,  // First player is the host
+        prompt: game.customPrompt
     };
     
     publicRooms.set(roomCode, roomInfo);

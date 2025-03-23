@@ -467,6 +467,18 @@ socket.on('publicRoomsList', (rooms) => {
         details.className = 'room-details';
         details.textContent = `${room.playerCount} player${room.playerCount !== 1 ? 's' : ''} • Round ${room.round}`;
         
+        const roomControls = document.createElement('div');
+        roomControls.className = 'room-controls';
+        
+        const promptBtn = document.createElement('button');
+        promptBtn.className = 'icon-btn';
+        promptBtn.title = 'View AI Prompt';
+        promptBtn.innerHTML = '<span class="icon">🔮</span>';
+        promptBtn.onclick = (e) => {
+            e.stopPropagation();
+            showPromptModal(room.prompt);
+        };
+        
         const joinBtn = document.createElement('button');
         joinBtn.className = 'room-join';
         joinBtn.textContent = 'Join';
@@ -478,8 +490,11 @@ socket.on('publicRoomsList', (rooms) => {
         roomInfo.appendChild(hostName);
         roomInfo.appendChild(details);
         
+        roomControls.appendChild(promptBtn);
+        roomControls.appendChild(joinBtn);
+        
         roomItem.appendChild(roomInfo);
-        roomItem.appendChild(joinBtn);
+        roomItem.appendChild(roomControls);
         
         // Make the whole room item clickable
         roomItem.onclick = () => joinPublicRoom(room.roomCode);
@@ -801,6 +816,34 @@ function copyRoomLink() {
     const roomLink = `${window.location.origin}/?room=${roomCode}`;
     copyToClipboard(roomLink);
 }
+
+// Function to view room prompt in a modal
+function viewRoomPrompt() {
+    const roomCode = document.getElementById('currentRoom').textContent;
+    socket.emit('getRoomPrompt', roomCode);
+}
+
+// Function to show prompt in modal
+function showPromptModal(promptText) {
+    const viewPromptText = document.getElementById('viewPromptText');
+    viewPromptText.textContent = promptText;
+    document.getElementById('promptViewModal').style.display = 'flex';
+}
+
+// Set up the prompt view modal close functionality
+window.addEventListener('load', () => {
+    const closePromptViewBtn = document.getElementById('closePromptViewBtn');
+    if (closePromptViewBtn) {
+        closePromptViewBtn.addEventListener('click', () => {
+            document.getElementById('promptViewModal').style.display = 'none';
+        });
+    }
+});
+
+// Socket event to receive room prompt
+socket.on('roomPrompt', (prompt) => {
+    showPromptModal(prompt);
+});
 
 // Prompt Editor functionality
 function initPromptEditor() {

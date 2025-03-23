@@ -86,6 +86,7 @@
                 <button type="button" id="closePromptEditorBtn" class="close-btn">&times;</button>
             </div>
         </div>
+        
     </div>
 
     <div id="game" style="display: none;">
@@ -104,6 +105,9 @@
                     <button type="button" id="eraserBtn" onclick="toggleEraser()">Eraser</button>
                     <button type="button" onclick="undo()">Undo</button>
                     <button type="button" onclick="clearCanvas()">Clear</button>
+                    <button type="button" id="viewPromptBtn" class="icon-btn" title="View AI Prompt" onclick="viewRoomPrompt()">
+                        <span class="icon">🔮</span>
+                    </button>
                 </div>
                 <canvas id="canvas" width="600" height="400"></canvas>
             </div>
@@ -132,6 +136,17 @@
         </div>
         <div class="input-container">
             <input type="text" id="chatInput" placeholder="Guess...">
+        </div>
+    </div>
+
+    <!-- Prompt View Modal -->
+    <div id="promptViewModal" class="modal" style="display: none;">
+        <div class="modal-content prompt-view">
+            <h2>AI Generation Prompt</h2>
+            <div class="prompt-content">
+                <p id="viewPromptText"></p>
+            </div>
+            <button type="button" id="closePromptViewBtn" class="close-btn">&times;</button>
         </div>
     </div>
 

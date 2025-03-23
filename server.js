@@ -702,7 +702,10 @@ function tallyVotes(roomCode) {
     let resultMessage = '';
     if (winners.length > 0) {
         winners.forEach(winnerId => {
-            game.players.get(winnerId).score += 1;
+            // Check if the player still exists before adding score
+            if (game.players.has(winnerId)) {
+                game.players.get(winnerId).score += 1;
+            }
         });
         
         // Get vote counts for the message
@@ -711,12 +714,17 @@ function tallyVotes(roomCode) {
             winnerVotes.set(winnerId, voteCount.get(winnerId));
         });
         
-        if (winners.length === 1) {
-            const winnerName = game.players.get(winners[0]).username;
-            const votes = voteCount.get(winners[0]);
+        // Filter out winners who are no longer in the game
+        const validWinners = winners.filter(id => game.players.has(id));
+        
+        if (validWinners.length === 0) {
+            resultMessage = `The winner is no longer in the game. No points awarded.`;
+        } else if (validWinners.length === 1) {
+            const winnerName = game.players.get(validWinners[0]).username;
+            const votes = voteCount.get(validWinners[0]);
             resultMessage = `${winnerName}'s image won with ${votes} votes! They get a point!`;
         } else {
-            const winnersList = winners.map(id => 
+            const winnersList = validWinners.map(id => 
                 `${game.players.get(id).username} (${voteCount.get(id)} votes)`
             ).join(', ');
             resultMessage = `Multiple winners! ${winnersList} each get a point!`;

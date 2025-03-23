@@ -686,6 +686,9 @@ socket.on('newMessage', ({ username, message, timestamp, color }) => {
 socket.on('startVoting', (generatedImages) => {
     // Hide drawing view and show voting view
     document.getElementById('drawing-view').style.display = 'none';
+
+    // Re-enable chat for drawer
+    document.getElementById('chatInput').disabled = false;
     
     // Show the voting area
     const votingArea = document.getElementById('voting');

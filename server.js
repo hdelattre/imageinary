@@ -318,12 +318,24 @@ async function generateNewImage(roomCode) {
 
                 const imageData = imagePart.inlineData.data;
                 const buffer = Buffer.from(imageData, 'base64');
-                const filename = `generated-${roomCode}-${game.round}-${guessData.playerId}.png`;
+                
+                // Sanitize filename components to prevent path traversal
+                const safeRoomCode = roomCode.replace(/[^a-zA-Z0-9]/g, '');
+                const safePlayerId = guessData.playerId.replace(/[^a-zA-Z0-9-]/g, '');
+                const safeRound = String(game.round).replace(/[^0-9]/g, '');
+                const filename = `generated-${safeRoomCode}-${safeRound}-${safePlayerId}.png`;
                 const filePath = path.join(__dirname, 'public', 'generated', filename);
+                
+                // Validate the path is within the generated directory
+                const safePath = path.normalize(filePath);
+                const generatedDir = path.join(__dirname, 'public', 'generated');
+                if (!safePath.startsWith(generatedDir)) {
+                    throw new Error('Invalid file path detected');
+                }
 
                 // Ensure the directory exists
-                fs.mkdirSync(path.dirname(filePath), { recursive: true });
-                fs.writeFileSync(filePath, buffer);
+                fs.mkdirSync(path.dirname(safePath), { recursive: true });
+                fs.writeFileSync(safePath, buffer);
 
                 // Verify the output file
                 console.log(`Generated image saved: ${filePath}`);
@@ -332,7 +344,7 @@ async function generateNewImage(roomCode) {
                     playerId: guessData.playerId,
                     playerName: guessData.playerName,
                     guess: guessData.guess,
-                    imageSrc: `/generated/${filename}`
+                    imageSrc: `/generated/${filename}` // Using the sanitized filename
                 });
             } catch (error) {
                 console.error(`Error generating image for guess "${guessData.guess}":`, error.message);
@@ -471,5 +483,49 @@ function updateGameState(roomCode) {
         voting: game.voting,
     });
 }
+
+// Function to clean up old generated images
+function cleanupOldImages() {
+    const dir = path.join(__dirname, 'public', 'generated');
+    
+    // Ensure the directory exists before trying to read it
+    if (!fs.existsSync(dir)) {
+        return;
+    }
+    
+    fs.readdir(dir, (err, files) => {
+        if (err) {
+            console.error('Error reading generated directory:', err);
+            return;
+        }
+        
+        const now = Date.now();
+        files.forEach(file => {
+            if (!file.startsWith('generated-')) return; // Only process our generated files
+            
+            const filePath = path.join(dir, file);
+            fs.stat(filePath, (err, stats) => {
+                if (err) {
+                    console.error(`Error stat'ing file ${filePath}:`, err);
+                    return;
+                }
+                
+                // Delete files older than 24 hours
+                if (now - stats.mtimeMs > 24 * 60 * 60 * 1000) {
+                    fs.unlink(filePath, err => {
+                        if (err) {
+                            console.error(`Error deleting file ${filePath}:`, err);
+                        } else {
+                            console.log(`Cleaned up old image: ${filePath}`);
+                        }
+                    });
+                }
+            });
+        });
+    });
+}
+
+// Run the cleanup every hour
+setInterval(cleanupOldImages, 60 * 60 * 1000);
 
 server.listen(3000, () => console.log('Server running on port 3000'));

@@ -197,7 +197,7 @@ function startTurn(roomCode) {
     drawings.set(roomCode, '');
     
     const players = Array.from(game.players.keys());
-    game.currentDrawer = players[game.round % players.length];
+    game.currentDrawer = players[(game.round - 1) % players.length];
     game.currentPrompt = prompts[Math.floor(Math.random() * prompts.length)];
     io.to(game.currentDrawer).emit('newPrompt', game.currentPrompt);
     io.to(roomCode).emit('newTurn', {

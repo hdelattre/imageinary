@@ -6,7 +6,7 @@ const socketIo = require('socket.io');
 const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 
-// Import shared configuration
+// Import shared configuration and validation
 const CONFIG = require('./public/shared-config');
 
 const app = express();
@@ -58,8 +58,12 @@ io.on('connection', (socket) => {
         // Store custom prompt if provided
         if (customPrompt) {
             const game = games.get(roomCode);
-            // Cap prompt length and sanitize
-            game.customPrompt = sanitizeMessage(customPrompt.slice(0, CONFIG.MAX_PROMPT_LENGTH), './!?-,\'');
+            // Validate the prompt
+            const validation = CONFIG.validatePrompt(customPrompt);
+            if (validation.valid) {
+                // Sanitize the validated prompt
+                game.customPrompt = sanitizeMessage(validation.prompt, './!?-,\'');
+            }
         }
         
         // If room is public, add it to the public rooms list
@@ -118,13 +122,19 @@ io.on('connection', (socket) => {
             const isHost = players.length > 0 && players[0] === socket.id;
             
             if (isHost) {
-                // Update the custom prompt with length limit
-                game.customPrompt = sanitizeMessage(prompt.slice(0, CONFIG.MAX_PROMPT_LENGTH), './!?-,\'');
-                console.log(`Room ${roomCode} prompt updated by host`);
-                
-                // If this is a public room, update the public room list
-                if (game.isPublic) {
-                    updatePublicRoomsList(roomCode);
+                // Validate the prompt
+                const validation = CONFIG.validatePrompt(prompt);
+                if (validation.valid) {
+                    // Update the custom prompt with the validated prompt
+                    game.customPrompt = sanitizeMessage(validation.prompt, './!?-,\'');
+                    console.log(`Room ${roomCode} prompt updated by host`);
+                    
+                    // If this is a public room, update the public room list
+                    if (game.isPublic) {
+                        updatePublicRoomsList(roomCode);
+                    }
+                } else {
+                    console.log(`Invalid prompt submitted by host in room ${roomCode}: ${validation.error}`);
                 }
             }
         }
@@ -139,11 +149,14 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            // Generate prompt using the template and guess
-            if (!promptTemplate || !promptTemplate.includes('{guess}')) {
-                socket.emit('testImageResult', { error: 'Invalid prompt template: Must include {guess} placeholder' });
+            // Validate the prompt template
+            const validation = CONFIG.validatePrompt(promptTemplate);
+            if (!validation.valid) {
+                socket.emit('testImageResult', { error: 'Invalid prompt template: ' + validation.error });
                 return;
             }
+            // Use the validated prompt (might have been trimmed)
+            promptTemplate = validation.prompt;
             
             const generationPrompt = promptTemplate.replace('{guess}', guess);
             

@@ -882,7 +882,7 @@ function savePrompt() {
     const saveBtn = document.getElementById('savePromptBtn');
     const originalText = saveBtn.textContent;
     const promptValue = document.getElementById('promptTemplate').value.trim();
-    const validation = validatePrompt(promptValue);
+    const validation = CONFIG.validatePrompt(promptValue);
     
     if (!validation.valid) {
         // Show error message
@@ -945,40 +945,6 @@ function savePrompt() {
     // Close the modal
     document.getElementById('promptEditorModal').style.display = 'none';
     return true;
-}
-
-// Function to validate a prompt, returning validation result
-function validatePrompt(prompt) {
-    // Check if prompt is empty
-    if (!prompt) {
-        return { 
-            valid: false, 
-            prompt: null,
-            error: 'Prompt cannot be empty'
-        };
-    }
-    
-    // Check if prompt includes the {guess} placeholder
-    if (!prompt.includes('{guess}')) {
-        return { 
-            valid: false, 
-            prompt: null,
-            error: 'Missing {guess} placeholder'
-        };
-    }
-    
-    // Check if prompt exceeds maximum length
-    if (prompt.length > CONFIG.MAX_PROMPT_LENGTH) {
-        const trimmed = prompt.slice(0, CONFIG.MAX_PROMPT_LENGTH);
-        return { 
-            valid: true, 
-            prompt: trimmed,
-            warning: `Trimmed to ${CONFIG.MAX_PROMPT_LENGTH} chars`
-        };
-    }
-    
-    // Prompt is valid
-    return { valid: true, prompt: prompt };
 }
 
 // Prompt Editor functionality

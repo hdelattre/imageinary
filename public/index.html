@@ -32,11 +32,11 @@
             <div id="toolbar" style="display: none;">
                 <input type="color" id="colorPicker" value="#000000" title="Choose color">
                 <select id="brushSize" title="Brush size">
-                    <option value="2">Small</option>
-                    <option value="5" selected>Medium</option>
-                    <option value="10">Large</option>
+                    <option value="2">S</option>
+                    <option value="5" selected>M</option>
+                    <option value="10">L</option>
                 </select>
-                <button onclick="setEraser()">Eraser</button>
+                <button id="eraserBtn" onclick="toggleEraser()">Eraser</button>
                 <button onclick="undo()">Undo</button>
                 <button onclick="clearCanvas()">Clear</button>
             </div>

@@ -178,14 +178,27 @@ canvas.addEventListener('mouseleave', () => {
     }
 });
 
-function setEraser() {
-    isEraser = true;
-    document.getElementById('colorPicker').disabled = true;
+function toggleEraser() {
+    isEraser = !isEraser;
+    const eraserBtn = document.getElementById('eraserBtn');
+    const colorPicker = document.getElementById('colorPicker');
+    
+    if (isEraser) {
+        eraserBtn.classList.add('eraser-active');
+        colorPicker.disabled = true;
+    } else {
+        eraserBtn.classList.remove('eraser-active');
+        colorPicker.disabled = false;
+    }
 }
 
 document.getElementById('colorPicker').addEventListener('change', () => {
-    isEraser = false;
-    document.getElementById('colorPicker').disabled = false;
+    if (isEraser) {
+        // Switch out of eraser mode when a color is picked
+        isEraser = false;
+        document.getElementById('eraserBtn').classList.remove('eraser-active');
+        document.getElementById('colorPicker').disabled = false;
+    }
 });
 
 function sendDrawingUpdate() {
@@ -236,6 +249,9 @@ function startGame(roomCode, username, inviteLink) {
         inviteDiv.style.display = 'block';
         inviteDiv.innerHTML = `Invite others: <a href="${inviteLink}" target="_blank">${inviteLink}</a>`;
     }
+    
+    // Ensure the game interface is visible and scrollable
+    document.body.style.overflow = 'auto';
 }
 
 socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
@@ -276,9 +292,10 @@ socket.on('newTurn', ({ drawer, drawerId, round }) => {
     document.getElementById('toolbar').style.display = socket.id === drawerId ? 'block' : 'none';
     document.getElementById('canvas').style.display = 'block';
     
-    // Reset color picker state
+    // Reset color picker and eraser state
     isEraser = false;
     document.getElementById('colorPicker').disabled = false;
+    document.getElementById('eraserBtn').classList.remove('eraser-active');
 });
 
 socket.on('newPrompt', (prompt) => {

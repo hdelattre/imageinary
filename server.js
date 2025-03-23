@@ -13,9 +13,11 @@ const io = socketIo(server);
 // Replace with your actual Gemini API key and model configuration
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp-image-generation',
-    generationConfig: { responseModalities: ['Text', 'Image'] },
-});
+    model: "gemini-2.0-flash-exp-image-generation",
+    generationConfig: {
+        responseModalities: ['Text', 'Image']
+    },
+  });
 
 // In-memory storage
 const games = new Map(); // roomCode -> gameData
@@ -27,6 +29,8 @@ const prompts = [
     "cat", "dog", "house", "tree", "car", "sun", "moon", "star", "flower", "boat",
     "airplane", "bicycle", "book", "chair", "computer", "door", "window", "table", "shoe", "hat"
 ];
+
+const roundDuration = 45;
 
 app.use(express.static('public'));
 
@@ -202,11 +206,12 @@ function startTurn(roomCode) {
         round: game.round,
     });
 
-    game.timerEnd = Date.now() + 40000;
-    game.timer = setTimeout(() => endRound(roomCode), 40000);
+    const roundMs = roundDuration * 1000;
+    game.timerEnd = Date.now() + roundMs;
+    game.timer = setTimeout(() => endRound(roomCode), roundMs);
     
     // Start the timer on all clients
-    io.to(roomCode).emit('startTimer', 40);
+    io.to(roomCode).emit('startTimer', roundDuration);
     
     updateGameState(roomCode);
     
@@ -231,29 +236,68 @@ function endRound(roomCode) {
 async function generateNewImage(roomCode) {
     const game = games.get(roomCode);
     const drawingData = drawings.get(roomCode);
-    if (!game || !drawingData) return;
+    if (!game || !drawingData) {
+        console.error(`Missing game or drawing data for roomCode: ${roomCode}`);
+        return;
+    }
 
     try {
-        const drawingBuffer = Buffer.from(drawingData.split(',')[1], 'base64');
-        const guesses = Array.from(game.lastMessages.values()).filter(guess => guess);
-        const prompt = `Create a realistic 3D rendered image based on this drawing and these descriptions: ${guesses.join(', ')}`;
+        // Extract base64 string from data URL
+        const base64Data = drawingData.split(',')[1];
+        if (!base64Data) {
+            throw new Error('Invalid drawingData format: no base64 content found');
+        }
 
+        const guesses = Array.from(game.lastMessages.values()).filter(guess => guess);
+        const prompt = `The provided image is a Pictionary sketch. Draw it realistically and looking like a ${guesses.join(', ')}`;
+
+        // Send request to the model
         const response = await model.generateContent([
             prompt,
-            { inlineData: { data: drawingBuffer.toString('base64'), mimeType: 'image/png' } },
+            { inlineData: { data: base64Data, mimeType: 'image/png' } },
         ]);
 
-        const imagePart = response.response.candidates[0].content.parts.find(part => part.inlineData);
-        if (imagePart) {
-            const imageData = imagePart.inlineData.data;
-            const buffer = Buffer.from(imageData, 'base64');
-            const filename = `generated-${roomCode}-${game.round}.png`;
-            fs.writeFileSync(path.join(__dirname, 'public', 'generated', filename), buffer);
-            game.imageSrc = `/generated/${filename}`;
-            startVoting(roomCode);
+        // Log the full response for debugging
+        console.log('Full API Response:', JSON.stringify(response, null, 2));
+        if (response.response.candidates.length === 0) {
+            console.error('No candidates returned by the model');
+            throw new Error('Model returned no candidates');
         }
+
+        // Extract the generated image
+        const candidate = response.response.candidates[0];
+
+        if (candidate.finishReason === 'RECITATION') {
+            console.log('Model rejected input due to RECITATION. Using original drawing as fallback.');
+            game.imageSrc = drawings.get(roomCode); // Fallback to original drawing
+            startVoting(roomCode);
+            return;
+        }
+
+        if (!candidate || !candidate.content || !candidate.content.parts) {
+            throw new Error('No valid candidate content in response');
+        }
+
+        const imagePart = candidate.content.parts.find(part => part.inlineData);
+        if (!imagePart || !imagePart.inlineData || !imagePart.inlineData.data) {
+            throw new Error('No inline image data found in response');
+        }
+
+        const imageData = imagePart.inlineData.data;
+        const buffer = Buffer.from(imageData, 'base64');
+        const filename = `generated-${roomCode}-${game.round}.png`;
+        const filePath = path.join(__dirname, 'public', 'generated', filename);
+
+        // Ensure the directory exists
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(filePath, buffer);
+
+        // Verify the output file
+        console.log(`Generated image saved: ${filePath}`);
+        game.imageSrc = `/generated/${filename}`;
+        startVoting(roomCode);
     } catch (error) {
-        console.error('Error generating image:', error);
+        console.error('Error generating image:', error.message, error.stack);
         io.to(roomCode).emit('error', 'Failed to generate image');
     }
 }

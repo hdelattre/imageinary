@@ -253,7 +253,7 @@ socket.on('votingResults', ({ message, scores }) => {
         scores.map(s => `<div><span style="color:${s.color || '#000'}">${s.username}</span>: ${s.score}</div>`).join('');
 });
 
-socket.on('error', (message) => alert(message));
+socket.on('error', (message) => console.error(message));
 
 // Track the current timer interval so we can clear it
 let currentTimerInterval = null;

@@ -176,6 +176,15 @@ io.on('connection', (socket) => {
             game.players.set(socket.id, { username: uniqueUsername, score: 0, color: getRandomColor() });
             socket.emit('roomJoined', { roomCode, username: uniqueUsername });
             
+            // Reset emptiness timestamp since we have a new player
+            game.emptyRoomTimestamp = null;
+            
+            // Check if room had only one player before this join, and reset that timestamp if needed
+            if (game.players.size >= 2 && game.singlePlayerTimestamp !== null) {
+                // At least 2 players now (including this new one), so reset single player timestamp
+                game.singlePlayerTimestamp = null;
+            }
+            
             // Send current drawing state to the new player
             const currentDrawing = drawings.get(roomCode);
             if (currentDrawing) {
@@ -263,11 +272,30 @@ io.on('connection', (socket) => {
         games.forEach((game, roomCode) => {
             if (game.players.has(socket.id)) {
                 game.players.delete(socket.id);
+                
+                // Check player count after removal
                 if (game.players.size === 0) {
-                    games.delete(roomCode);
-                    drawings.delete(roomCode);
-                    publicRooms.delete(roomCode);
-                } else if (game.currentDrawer === socket.id) {
+                    // Set the empty room timestamp instead of immediately deleting
+                    game.emptyRoomTimestamp = Date.now();
+                    
+                    // For public rooms in immediate cleanup mode, remove immediately
+                    if (!game.isPublic) {
+                        // For private rooms, allow cleanup to handle it
+                        console.log(`Room ${roomCode} is now empty. Will expire in 60 seconds if no one joins.`);
+                    } else {
+                        console.log(`Public room ${roomCode} is now empty. Will expire in 30 seconds if no one joins.`);
+                    }
+                } else if (game.players.size === 1 && game.isPublic) {
+                    // Public room with only one player remaining
+                    game.singlePlayerTimestamp = Date.now();
+                    console.log(`Public room ${roomCode} now has only 1 player. Will expire in 15 minutes if it stays that way.`);
+                } else {
+                    // Reset single player timestamp if we have more players
+                    game.singlePlayerTimestamp = null;
+                }
+                
+                // If the drawer left, start a new turn
+                if (game.currentDrawer === socket.id && game.players.size > 0) {
                     nextTurn(roomCode);
                 }
                 
@@ -329,6 +357,8 @@ function initializeGame(roomCode, socketId, username, isPublic = false) {
         voting: false,
         isPublic: isPublic,
         createdAt: Date.now(),
+        emptyRoomTimestamp: null,     // Track when the room becomes empty
+        singlePlayerTimestamp: null,  // Track when the room has only one player
         // Default AI generation prompt template
         customPrompt: "Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. It must look like the provided sketch! Do not modify important shapes/silhouettes in the sketch, just fill them in. Make it look like the provided guess: {guess}"
     });
@@ -336,6 +366,11 @@ function initializeGame(roomCode, socketId, username, isPublic = false) {
     // If it's a public room, add it to the public rooms list
     if (isPublic) {
         updatePublicRoomsList(roomCode);
+    }
+    
+    // For a new room with a single player, set the single player timestamp
+    if (isPublic) {
+        games.get(roomCode).singlePlayerTimestamp = Date.now();
     }
     
     startTurn(roomCode);
@@ -657,21 +692,62 @@ function updatePublicRoomsList(roomCode) {
     publicRooms.set(roomCode, roomInfo);
 }
 
-// Function to clean up old public rooms
-function cleanupPublicRooms() {
+// Function to clean up rooms based on the new expiration rules
+function cleanupRooms() {
     const now = Date.now();
-    const twoHoursInMs = 2 * 60 * 60 * 1000;
+    const privateRoomExpiryMs = 60 * 1000;         // 60 seconds for empty private rooms
+    const publicRoomEmptyExpiryMs = 30 * 1000;     // 30 seconds for empty public rooms
+    const publicRoomSinglePlayerExpiryMs = 15 * 60 * 1000;  // 15 minutes for single-player public rooms
     
-    // Remove rooms older than 2 hours or rooms that no longer exist
-    publicRooms.forEach((roomInfo, roomCode) => {
-        const game = games.get(roomCode);
-        if (!game || (now - roomInfo.createdAt > twoHoursInMs)) {
-            publicRooms.delete(roomCode);
-        } else {
-            // Update the player count
+    // Check all games for potential cleanup
+    games.forEach((game, roomCode) => {
+        // Empty room cleanup
+        if (game.emptyRoomTimestamp !== null) {
+            const emptyDuration = now - game.emptyRoomTimestamp;
+            
+            // Different expiry times for public vs private rooms
+            const expiryTime = game.isPublic ? publicRoomEmptyExpiryMs : privateRoomExpiryMs;
+            
+            if (emptyDuration > expiryTime) {
+                console.log(`Room ${roomCode} has been empty for ${Math.floor(emptyDuration/1000)} seconds. Removing.`);
+                games.delete(roomCode);
+                drawings.delete(roomCode);
+                publicRooms.delete(roomCode);
+                return; // Skip further checks for this room
+            }
+        }
+        
+        // Single player public room cleanup (only applies to public rooms)
+        if (game.isPublic && game.singlePlayerTimestamp !== null && game.players.size === 1) {
+            const singlePlayerDuration = now - game.singlePlayerTimestamp;
+            
+            if (singlePlayerDuration > publicRoomSinglePlayerExpiryMs) {
+                console.log(`Public room ${roomCode} has had only 1 player for ${Math.floor(singlePlayerDuration/60000)} minutes. Removing.`);
+                
+                // Notify the last player before removing the room
+                const lastPlayerId = Array.from(game.players.keys())[0];
+                io.to(lastPlayerId).emit('error', 'This room has expired due to inactivity. Please create or join a new room.');
+                
+                games.delete(roomCode);
+                drawings.delete(roomCode);
+                publicRooms.delete(roomCode);
+                return; // Skip further checks for this room
+            }
+        }
+        
+        // For rooms that still exist, update public listing
+        if (game.isPublic && publicRooms.has(roomCode)) {
+            const roomInfo = publicRooms.get(roomCode);
             roomInfo.playerCount = game.players.size;
             roomInfo.round = game.round;
             publicRooms.set(roomCode, roomInfo);
+        }
+    });
+    
+    // Clean up any orphaned public room entries (where the game no longer exists)
+    publicRooms.forEach((roomInfo, roomCode) => {
+        if (!games.has(roomCode)) {
+            publicRooms.delete(roomCode);
         }
     });
 }
@@ -719,7 +795,7 @@ function cleanupOldImages() {
 
 // Run the cleanup every hour
 setInterval(cleanupOldImages, 60 * 60 * 1000);
-// Run the public rooms cleanup every minute
-setInterval(cleanupPublicRooms, 60 * 1000);
+// Run the rooms cleanup every 15 seconds
+setInterval(cleanupRooms, 15 * 1000);
 
 server.listen(port, () => console.log(`Server running on port ${port}`));

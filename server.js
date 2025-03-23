@@ -9,6 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
+const port = process.env.PORT || 3000;
 
 // Replace with your actual Gemini API key and model configuration
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -47,7 +48,7 @@ io.on('connection', (socket) => {
         const roomCode = uuidv4().slice(0, 6).toUpperCase();
         socket.join(roomCode);
         initializeGame(roomCode, socket.id, username);
-        socket.emit('roomCreated', { roomCode, username, inviteLink: `http://localhost:3000/?room=${roomCode}` });
+        socket.emit('roomCreated', { roomCode, username, inviteLink: `http://localhost:${port}/?room=${roomCode}` });
     });
 
     socket.on('joinRoom', ({ roomCode, username }) => {
@@ -528,4 +529,4 @@ function cleanupOldImages() {
 // Run the cleanup every hour
 setInterval(cleanupOldImages, 60 * 60 * 1000);
 
-server.listen(3000, () => console.log('Server running on port 3000'));
+server.listen(port, () => console.log(`Server running on port ${port}`));

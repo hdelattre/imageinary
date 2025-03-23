@@ -47,50 +47,15 @@
             <button type="button" id="promptEditorBtn" class="secondary-btn">Customize AI Prompt</button>
         </div>
         
-        <!-- Prompt Editor Modal -->
-        <div id="promptEditorModal" class="modal" style="display: none;">
-            <div class="modal-content prompt-editor">
-                <h2>AI Generation Prompt Editor</h2>
-                
-                <div class="editor-section">
-                    <h3>Current Prompt Template</h3>
-                    <textarea id="promptTemplate" rows="5" placeholder="Enter your custom prompt template..."></textarea>
-                    <p class="prompt-help">Use <code>{guess}</code> as a placeholder for player guesses.</p>
-                    <div class="editor-controls">
-                        <button type="button" id="savePromptBtn" class="primary-btn">Save Prompt</button>
-                        <button type="button" id="resetPromptBtn" class="secondary-btn">Reset to Default</button>
-                    </div>
-                </div>
-                
-                <div class="editor-section">
-                    <h3>Test Your Prompt</h3>
-                    <div class="test-area">
-                        <div class="test-canvas-container">
-                            <canvas id="testCanvas" width="300" height="200"></canvas>
-                            <div class="test-tools">
-                                <input type="color" id="testColorPicker" value="#000000">
-                                <button type="button" id="testClearBtn">Clear</button>
-                            </div>
-                        </div>
-                        <div class="test-input">
-                            <input type="text" id="testGuessInput" placeholder="Enter a sample guess...">
-                            <button type="button" id="testGenerateBtn" class="primary-btn">Generate Test Image</button>
-                        </div>
-                    </div>
-                    <div id="testResult" class="test-result">
-                        <h4>Generated Result</h4>
-                        <div id="testImageContainer"></div>
-                    </div>
-                </div>
-                
-                <button type="button" id="closePromptEditorBtn" class="close-btn">&times;</button>
-            </div>
-        </div>
         
     </div>
 
     <div id="game" style="display: none;">
         <h1>Imageinary</h1>
+        <!-- Prompt button positioned outside of drawing container so it's always visible -->
+        <button type="button" id="viewPromptBtn" class="icon-btn" title="View AI Prompt" onclick="viewRoomPrompt()" style="position: absolute; top: 20px; right: 20px; z-index: 2000;">
+            <span class="icon">🔮</span>
+        </button>
         <div id="prompt" style="display: none;">Draw: <span id="promptText"></span></div>
         <div class="drawing-container">
             <!-- Drawing View -->
@@ -106,10 +71,6 @@
                     <button type="button" onclick="undo()">Undo</button>
                     <button type="button" onclick="clearCanvas()">Clear</button>
                 </div>
-                <!-- Moved outside toolbar so it's always accessible -->
-                <button type="button" id="viewPromptBtn" class="icon-btn" title="View AI Prompt" onclick="viewRoomPrompt()" style="position: absolute; top: 10px; right: 10px; z-index: 10;">
-                    <span class="icon">🔮</span>
-                </button>
                 <canvas id="canvas" width="600" height="400"></canvas>
             </div>
             
@@ -148,6 +109,46 @@
                 <p id="viewPromptText"></p>
             </div>
             <button type="button" id="closePromptViewBtn" class="close-btn">&times;</button>
+        </div>
+    </div>
+
+    <!-- Prompt Editor Modal -->
+    <div id="promptEditorModal" class="modal" style="display: none;">
+        <div class="modal-content prompt-editor">
+            <h2>AI Generation Prompt Editor</h2>
+            
+            <div class="editor-section">
+                <h3>Current Prompt Template</h3>
+                <textarea id="promptTemplate" rows="5" placeholder="Enter your custom prompt template..."></textarea>
+                <p class="prompt-help">Use <code>{guess}</code> as a placeholder for player guesses.</p>
+                <div class="editor-controls">
+                    <button type="button" id="savePromptBtn" class="primary-btn">Save Prompt</button>
+                    <button type="button" id="resetPromptBtn" class="secondary-btn">Reset to Default</button>
+                </div>
+            </div>
+            
+            <div class="editor-section">
+                <h3>Test Your Prompt</h3>
+                <div class="test-area">
+                    <div class="test-canvas-container">
+                        <canvas id="testCanvas" width="300" height="200"></canvas>
+                        <div class="test-tools">
+                            <input type="color" id="testColorPicker" value="#000000">
+                            <button type="button" id="testClearBtn">Clear</button>
+                        </div>
+                    </div>
+                    <div class="test-input">
+                        <input type="text" id="testGuessInput" placeholder="Enter a sample guess...">
+                        <button type="button" id="testGenerateBtn" class="primary-btn">Generate Test Image</button>
+                    </div>
+                </div>
+                <div id="testResult" class="test-result">
+                    <h4>Generated Result</h4>
+                    <div id="testImageContainer"></div>
+                </div>
+            </div>
+            
+            <button type="button" id="closePromptEditorBtn" class="close-btn">&times;</button>
         </div>
     </div>
 

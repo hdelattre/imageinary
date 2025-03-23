@@ -525,21 +525,6 @@ function startGame(roomCode, username, inviteLink) {
     document.getElementById('game').style.display = 'block';
     document.getElementById('currentRoom').textContent = roomCode;
     
-    // Check if current player is host to adjust viewPromptBtn display
-    socket.emit('checkIfHost', roomCode, (isHost) => {
-        const viewPromptBtn = document.getElementById('viewPromptBtn');
-        if (viewPromptBtn) {
-            // Make prompt button prominent for host
-            if (isHost) {
-                viewPromptBtn.classList.add('host-prompt-btn');
-                viewPromptBtn.title = 'Edit AI Prompt (Host Only)';
-            } else {
-                viewPromptBtn.classList.remove('host-prompt-btn');
-                viewPromptBtn.title = 'View AI Prompt';
-            }
-        }
-    });
-    
     // Initialize timer
     document.getElementById('timer').textContent = getTimeString('--');
     
@@ -547,9 +532,7 @@ function startGame(roomCode, username, inviteLink) {
     if (!inviteLink) {
         inviteLink = `${window.location.origin}/?room=${roomCode}`;
     }
-    
-    // We'll use an icon in the game info section instead of a separate invite button
-    
+
     // Ensure the game interface is visible and scrollable
     document.body.style.overflow = 'auto';
 }
@@ -575,6 +558,19 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
         
         playersDiv.appendChild(playerDiv);
     });
+
+    // Update prompt button styling when host changes
+    const isHost = players.length > 0 && players[0].id === socket.id;
+    const viewPromptBtn = document.getElementById('viewPromptBtn');
+    if (viewPromptBtn) {
+        if (isHost) {
+            viewPromptBtn.classList.add('host-prompt-btn');
+            viewPromptBtn.title = 'Edit AI Prompt (Host Only)';
+        } else {
+            viewPromptBtn.classList.remove('host-prompt-btn');
+            viewPromptBtn.title = 'View AI Prompt';
+        }
+    }
 
     // Only disable chat for drawer during drawing phase (not during voting)
     document.getElementById('chatInput').disabled = !voting && socket.id === currentDrawer;

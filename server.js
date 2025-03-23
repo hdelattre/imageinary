@@ -73,6 +73,8 @@ io.on('connection', (socket) => {
         }
         
         socket.emit('roomCreated', { roomCode, username, inviteLink: `http://localhost:${port}/?room=${roomCode}`, isPublic });
+
+        startTurn(roomCode);
     });
     
     // Set up rate limiting for public rooms requests
@@ -433,8 +435,6 @@ function initializeGame(roomCode, socketId, username, isPublic = false) {
     if (isPublic) {
         games.get(roomCode).singlePlayerTimestamp = Date.now();
     }
-    
-    startTurn(roomCode);
 }
 
 function startTurn(roomCode) {

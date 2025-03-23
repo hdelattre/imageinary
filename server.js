@@ -77,9 +77,11 @@ io.on('connection', (socket) => {
         startTurn(roomCode);
     });
     
-    // Set up rate limiting for public rooms requests
+    // Set up rate limiting
     const publicRoomsRefreshRates = new Map(); // socketId -> last refresh time
+    const imageGenerationTimes = new Map(); // socketId -> last image generation time
     const REFRESH_COOLDOWN = 3000; // 3 seconds minimum between refreshes
+    const IMAGE_GEN_COOLDOWN = 8000; // 8 seconds between image generation requests
     
     // Add endpoint to get public rooms
     socket.on('getPublicRooms', () => {
@@ -145,6 +147,22 @@ io.on('connection', (socket) => {
     
     socket.on('testGenerateImage', async ({ drawingData, guess, promptTemplate }) => {
         try {
+            // Rate limiting check
+            const now = Date.now();
+            const lastGenTime = imageGenerationTimes.get(socket.id) || 0;
+            
+            // If the user has generated an image too recently, reject the request
+            if (now - lastGenTime < IMAGE_GEN_COOLDOWN) {
+                const waitTimeSeconds = Math.ceil((IMAGE_GEN_COOLDOWN - (now - lastGenTime)) / 1000);
+                socket.emit('testImageResult', { 
+                    error: `Please wait ${waitTimeSeconds} second${waitTimeSeconds !== 1 ? 's' : ''} before requesting another image.` 
+                });
+                return;
+            }
+            
+            // Update the last generation time
+            imageGenerationTimes.set(socket.id, now);
+            
             // Extract base64 string from data URL
             const base64Data = drawingData.split(',')[1];
             if (!base64Data) {
@@ -374,6 +392,7 @@ io.on('connection', (socket) => {
         
         // Clean up rate limiting data
         publicRoomsRefreshRates.delete(socket.id);
+        imageGenerationTimes.delete(socket.id);
     });
 });
 

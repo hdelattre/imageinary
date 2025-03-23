@@ -7,9 +7,6 @@ let undoStack = [];
 let lastDrawingSent = null;
 let drawingUpdateBuffer = 0;
 
-// For backwards compatibility
-const defaultPrompt = CONFIG.DEFAULT_PROMPT;
-
 // Get custom prompt from localStorage or use default
 let customPrompt = localStorage.getItem('imageinary_custom_prompt') || CONFIG.DEFAULT_PROMPT;
 
@@ -864,73 +861,153 @@ socket.on('roomPrompt', (data) => {
     }
 });
 
+// Flag to track if we're editing a room prompt or just the default prompt
+let isEditingRoomPrompt = false;
+
 // Function to open prompt editor with a specific prompt
 function openPromptEditorWithPrompt(prompt) {
     const promptTemplate = document.getElementById('promptTemplate');
-    const resetPromptBtn = document.getElementById('resetPromptBtn');
-    const savePromptBtn = document.getElementById('savePromptBtn');
     
     // Save the current room prompt for reference
     window.currentRoomPrompt = prompt;
+    isEditingRoomPrompt = true;
     
     // Set initial value
     promptTemplate.value = prompt;
     document.getElementById('promptEditorModal').style.display = 'flex';
-    
-    // Store the original button actions for later restoration
-    const originalSaveAction = savePromptBtn.onclick;
-    const originalResetAction = resetPromptBtn.onclick;
-    
-    // Custom reset action to reset to current room prompt, not default
-    resetPromptBtn.onclick = function() {
-        promptTemplate.value = window.currentRoomPrompt;
-    };
-    
-    // Set the save button to update the room prompt
-    savePromptBtn.onclick = function() {
-        updateRoomPrompt();
-        // Restore original actions for future non-game prompt edits
-        setTimeout(() => {
-            savePromptBtn.onclick = originalSaveAction;
-            resetPromptBtn.onclick = originalResetAction;
-        }, 100);
-    };
 }
 
-// Function to update the room's prompt
-function updateRoomPrompt() {
-    let newPrompt = document.getElementById('promptTemplate').value.trim();
-    const roomCode = document.getElementById('currentRoom').textContent;
+// Function to save the current prompt (handles both regular and room prompts)
+function savePrompt() {
+    const saveBtn = document.getElementById('savePromptBtn');
+    const originalText = saveBtn.textContent;
+    const promptValue = document.getElementById('promptTemplate').value.trim();
+    const validation = validatePrompt(promptValue);
     
-    if (!newPrompt) {
-        alert('Prompt cannot be empty!');
-        return;
+    if (!validation.valid) {
+        // Show error message
+        saveBtn.textContent = 'Error: ' + validation.error;
+        saveBtn.style.backgroundColor = '#e74c3c';
+        setTimeout(() => {
+            saveBtn.textContent = originalText;
+            saveBtn.style.backgroundColor = '';
+        }, 2000);
+        return false;
     }
     
-    if (!newPrompt.includes('{guess}')) {
-        alert('Prompt must include {guess} placeholder!');
-        return;
+    // Get validated prompt (which may have been trimmed)
+    const newPrompt = validation.prompt;
+    
+    // If editing a room prompt, update it on the server
+    if (isEditingRoomPrompt) {
+        const roomCode = document.getElementById('currentRoom').textContent;
+        // Send the updated prompt to the server
+        socket.emit('updateRoomPrompt', { roomCode, prompt: newPrompt });
+        
+        // Show success feedback on the view prompt button
+        const viewPromptBtn = document.getElementById('viewPromptBtn');
+        if (viewPromptBtn) {
+            const btnOriginalBg = viewPromptBtn.style.backgroundColor;
+            viewPromptBtn.style.backgroundColor = '#4CAF50';
+            setTimeout(() => {
+                viewPromptBtn.style.backgroundColor = btnOriginalBg;
+            }, 2000);
+        }
     }
-    
-    // Cap the prompt length
-    if (newPrompt.length > CONFIG.MAX_PROMPT_LENGTH) {
-        newPrompt = newPrompt.slice(0, CONFIG.MAX_PROMPT_LENGTH);
-        alert(`Prompt has been trimmed to ${CONFIG.MAX_PROMPT_LENGTH} characters.`);
+    else {
+        // Update local storage for future games
+        customPrompt = newPrompt;
+        localStorage.setItem('imageinary_custom_prompt', newPrompt);
     }
-    
-    // Send the updated prompt to the server
-    socket.emit('updateRoomPrompt', { roomCode, prompt: newPrompt });
-    
-    // Also update local storage for future games
-    customPrompt = newPrompt;
-    localStorage.setItem('imageinary_custom_prompt', newPrompt);
+
+    // Handle any warnings (like trimming)
+    if (validation.warning) {
+        saveBtn.textContent = validation.warning;
+        saveBtn.style.backgroundColor = '#f39c12';
+        setTimeout(() => {
+            saveBtn.textContent = isEditingRoomPrompt ? 'Room Prompt Updated!' : 'Saved Successfully!';
+            saveBtn.style.backgroundColor = '#4CAF50';
+            setTimeout(() => {
+                saveBtn.textContent = originalText;
+                saveBtn.style.backgroundColor = '';
+            }, 1500);
+        }, 1500);
+    } else {
+        // Show success feedback
+        saveBtn.textContent = isEditingRoomPrompt ? 'Room Prompt Updated!' : 'Saved Successfully!';
+        saveBtn.style.backgroundColor = '#4CAF50';
+        setTimeout(() => {
+            saveBtn.textContent = originalText;
+            saveBtn.style.backgroundColor = '';
+        }, 2000);
+    }
     
     // Close the modal
     document.getElementById('promptEditorModal').style.display = 'none';
-    alert('Prompt updated successfully!');
+    return true;
+}
+
+// Function to validate a prompt, returning validation result
+function validatePrompt(prompt) {
+    // Check if prompt is empty
+    if (!prompt) {
+        return { 
+            valid: false, 
+            prompt: null,
+            error: 'Prompt cannot be empty'
+        };
+    }
+    
+    // Check if prompt includes the {guess} placeholder
+    if (!prompt.includes('{guess}')) {
+        return { 
+            valid: false, 
+            prompt: null,
+            error: 'Missing {guess} placeholder'
+        };
+    }
+    
+    // Check if prompt exceeds maximum length
+    if (prompt.length > CONFIG.MAX_PROMPT_LENGTH) {
+        const trimmed = prompt.slice(0, CONFIG.MAX_PROMPT_LENGTH);
+        return { 
+            valid: true, 
+            prompt: trimmed,
+            warning: `Trimmed to ${CONFIG.MAX_PROMPT_LENGTH} chars`
+        };
+    }
+    
+    // Prompt is valid
+    return { valid: true, prompt: prompt };
 }
 
 // Prompt Editor functionality
+// Function to reset prompt to appropriate value
+function resetPrompt() {
+    const resetBtn = document.getElementById('resetPromptBtn');
+    const originalText = resetBtn.textContent;
+    const promptTemplate = document.getElementById('promptTemplate');
+    
+    // If we're editing a room prompt, use the saved room prompt
+    if (isEditingRoomPrompt && window.currentRoomPrompt) {
+        promptTemplate.value = window.currentRoomPrompt;
+        resetBtn.textContent = 'Reset to Room Prompt';
+    } else {
+        // Otherwise use the default prompt
+        promptTemplate.value = CONFIG.DEFAULT_PROMPT;
+        customPrompt = CONFIG.DEFAULT_PROMPT;
+        localStorage.setItem('imageinary_custom_prompt', CONFIG.DEFAULT_PROMPT);
+        resetBtn.textContent = 'Reset Successfully!';
+    }
+    
+    // Show success feedback
+    resetBtn.style.backgroundColor = '#4CAF50';
+    setTimeout(() => {
+        resetBtn.textContent = originalText;
+        resetBtn.style.backgroundColor = '';
+    }, 2000);
+}
+
 function initPromptEditor() {
     // Set initial prompt in the editor (ensure it's within length limit)
     const promptTemplate = document.getElementById('promptTemplate');
@@ -948,36 +1025,21 @@ function initPromptEditor() {
     
     // Event handlers for the prompt editor
     document.getElementById('promptEditorBtn').addEventListener('click', () => {
+        // Reset flag - this is just the regular prompt editor, not a room prompt
+        isEditingRoomPrompt = false;
+        promptTemplate.value = customPrompt.slice(0, CONFIG.MAX_PROMPT_LENGTH);
         document.getElementById('promptEditorModal').style.display = 'flex';
     });
     
     document.getElementById('closePromptEditorBtn').addEventListener('click', () => {
         document.getElementById('promptEditorModal').style.display = 'none';
+        // Reset the editing state
+        isEditingRoomPrompt = false;
     });
     
-    document.getElementById('savePromptBtn').addEventListener('click', () => {
-        const newPrompt = promptTemplate.value.trim();
-        if (!newPrompt) {
-            alert('Prompt cannot be empty!');
-            return;
-        }
-        
-        if (!newPrompt.includes('{guess}')) {
-            alert('Prompt must include {guess} placeholder!');
-            return;
-        }
-        
-        customPrompt = newPrompt;
-        localStorage.setItem('imageinary_custom_prompt', newPrompt);
-        alert('Prompt saved successfully! It will be used in your next game.');
-    });
-    
-    document.getElementById('resetPromptBtn').addEventListener('click', () => {
-        promptTemplate.value = CONFIG.DEFAULT_PROMPT;
-        customPrompt = CONFIG.DEFAULT_PROMPT;
-        localStorage.setItem('imageinary_custom_prompt', CONFIG.DEFAULT_PROMPT);
-        alert('Prompt reset to default!');
-    });
+    // Unified handlers for both regular and room prompts
+    document.getElementById('savePromptBtn').addEventListener('click', savePrompt);
+    document.getElementById('resetPromptBtn').addEventListener('click', resetPrompt);
     
     // Test canvas drawing events
     testCanvas.addEventListener('mousedown', (e) => {

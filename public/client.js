@@ -294,13 +294,15 @@ socket.on('newTurn', ({ drawer, drawerId, round }) => {
     document.getElementById('voteResults').style.display = 'none';
     document.getElementById('prompt').style.display = 'none';
     
+    // Show drawing view
+    document.getElementById('drawing-view').style.display = 'block';
+    
     // Ensure timer is visible and reset
     document.getElementById('timer').textContent = getTimeString('--');
     document.getElementById('timer').style.color = '';
     
-    // Show drawing tools only for the drawer, but show canvas for everyone
+    // Show drawing tools only for the drawer
     document.getElementById('toolbar').style.display = socket.id === drawerId ? 'block' : 'none';
-    document.getElementById('canvas').style.display = 'block';
     
     // Reset color picker and eraser state
     isEraser = false;
@@ -354,9 +356,8 @@ socket.on('newMessage', ({ username, message, timestamp, color }) => {
 });
 
 socket.on('startVoting', (generatedImages) => {
-    // Hide drawing elements while voting
-    document.getElementById('toolbar').style.display = 'none';
-    document.getElementById('canvas').style.display = 'none';
+    // Hide drawing view and show voting view
+    document.getElementById('drawing-view').style.display = 'none';
     
     // Show the voting area
     const votingArea = document.getElementById('voting');
@@ -393,6 +394,8 @@ socket.on('startVoting', (generatedImages) => {
         votingImagesContainer.appendChild(imageContainer);
     });
     
+    // Hide the vote results initially
+    document.getElementById('voteResults').style.display = 'none';
     votingArea.style.display = 'block';
     
     // Add system message about voting starting

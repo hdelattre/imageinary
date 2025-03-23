@@ -29,18 +29,28 @@
         <h1>Imageinary</h1>
         <div id="prompt" style="display: none;">Draw: <span id="promptText"></span></div>
         <div class="drawing-container">
-            <div id="toolbar" style="display: none;">
-                <input type="color" id="colorPicker" value="#000000" title="Choose color">
-                <select id="brushSize" title="Brush size">
-                    <option value="2">S</option>
-                    <option value="5" selected>M</option>
-                    <option value="10">L</option>
-                </select>
-                <button id="eraserBtn" onclick="toggleEraser()">Eraser</button>
-                <button onclick="undo()">Undo</button>
-                <button onclick="clearCanvas()">Clear</button>
+            <!-- Drawing View -->
+            <div id="drawing-view">
+                <div id="toolbar" style="display: none;">
+                    <input type="color" id="colorPicker" value="#000000" title="Choose color">
+                    <select id="brushSize" title="Brush size">
+                        <option value="2">S</option>
+                        <option value="5" selected>M</option>
+                        <option value="10">L</option>
+                    </select>
+                    <button id="eraserBtn" onclick="toggleEraser()">Eraser</button>
+                    <button onclick="undo()">Undo</button>
+                    <button onclick="clearCanvas()">Clear</button>
+                </div>
+                <canvas id="canvas" width="600" height="400"></canvas>
             </div>
-            <canvas id="canvas" width="600" height="400"></canvas>
+            
+            <!-- Voting View -->
+            <div id="voting" style="display: none;">
+                <h2>Vote for your favorite image</h2>
+                <div id="voting-images"></div>
+                <div id="voteResults" style="display: none;"></div>
+            </div>
         </div>
         <div id="gameInfo">
             <span>🏠 <span id="currentRoom" class="copyable" onclick="copyToClipboard(this.textContent)" title="Click to copy"></span></span>
@@ -55,11 +65,6 @@
         <div class="input-container">
             <input type="text" id="chatInput" placeholder="Guess...">
         </div>
-        <div id="voting" style="display: none;">
-            <h2>Vote for your favorite image</h2>
-            <div id="voting-images"></div>
-        </div>
-        <div id="voteResults" style="display: none;"></div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>

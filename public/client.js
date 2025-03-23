@@ -8,7 +8,7 @@ let lastDrawingSent = null;
 let drawingUpdateBuffer = 0;
 
 // Get custom prompt from localStorage or use default
-let customPrompt = localStorage.getItem('imageinary_custom_prompt') || CONFIG.DEFAULT_PROMPT;
+let customPrompt = localStorage.getItem('imageinary_custom_prompt') || PROMPT_CONFIG.DEFAULT_PROMPT;
 
 ctx.lineCap = 'round';
 ctx.lineJoin = 'round';
@@ -882,7 +882,7 @@ function savePrompt() {
     const saveBtn = document.getElementById('savePromptBtn');
     const originalText = saveBtn.textContent;
     const promptValue = document.getElementById('promptTemplate').value.trim();
-    const validation = CONFIG.validatePrompt(promptValue);
+    const validation = PROMPT_CONFIG.validatePrompt(promptValue);
     
     if (!validation.valid) {
         // Show error message
@@ -960,9 +960,9 @@ function resetPrompt() {
         resetBtn.textContent = 'Reset to Room Prompt';
     } else {
         // Otherwise use the default prompt
-        promptTemplate.value = CONFIG.DEFAULT_PROMPT;
-        customPrompt = CONFIG.DEFAULT_PROMPT;
-        localStorage.setItem('imageinary_custom_prompt', CONFIG.DEFAULT_PROMPT);
+        promptTemplate.value = PROMPT_CONFIG.DEFAULT_PROMPT;
+        customPrompt = PROMPT_CONFIG.DEFAULT_PROMPT;
+        localStorage.setItem('imageinary_custom_prompt', PROMPT_CONFIG.DEFAULT_PROMPT);
         resetBtn.textContent = 'Reset Successfully!';
     }
     
@@ -977,7 +977,7 @@ function resetPrompt() {
 function initPromptEditor() {
     // Set initial prompt in the editor (ensure it's within length limit)
     const promptTemplate = document.getElementById('promptTemplate');
-    promptTemplate.value = customPrompt.slice(0, CONFIG.MAX_PROMPT_LENGTH);
+    promptTemplate.value = customPrompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
     
     // Setup test canvas
     const testCanvas = document.getElementById('testCanvas');
@@ -993,7 +993,7 @@ function initPromptEditor() {
     document.getElementById('promptEditorBtn').addEventListener('click', () => {
         // Reset flag - this is just the regular prompt editor, not a room prompt
         isEditingRoomPrompt = false;
-        promptTemplate.value = customPrompt.slice(0, CONFIG.MAX_PROMPT_LENGTH);
+        promptTemplate.value = customPrompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
         document.getElementById('promptEditorModal').style.display = 'flex';
     });
     

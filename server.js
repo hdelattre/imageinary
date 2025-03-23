@@ -8,6 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 
 // Import shared configuration and validation
 const CONFIG = require('./public/shared-config');
+const PROMPT_CONFIG = require('./public/shared-config');
 
 const app = express();
 const server = http.createServer(app);
@@ -59,10 +60,10 @@ io.on('connection', (socket) => {
         if (customPrompt) {
             const game = games.get(roomCode);
             // Validate the prompt
-            const validation = CONFIG.validatePrompt(customPrompt);
+            const validation = PROMPT_CONFIG.validatePrompt(customPrompt);
             if (validation.valid) {
                 // Sanitize the validated prompt
-                game.customPrompt = sanitizeMessage(validation.prompt, './!?-,\'');
+                game.customPrompt = sanitizeMessage(validation.prompt, PROMPT_CONFIG.VALID_CHARS);
             }
         }
         
@@ -123,10 +124,10 @@ io.on('connection', (socket) => {
             
             if (isHost) {
                 // Validate the prompt
-                const validation = CONFIG.validatePrompt(prompt);
+                const validation = PROMPT_CONFIG.validatePrompt(prompt);
                 if (validation.valid) {
                     // Update the custom prompt with the validated prompt
-                    game.customPrompt = sanitizeMessage(validation.prompt, './!?-,\'');
+                    game.customPrompt = sanitizeMessage(validation.prompt, PROMPT_CONFIG.VALID_CHARS);
                     console.log(`Room ${roomCode} prompt updated by host`);
                     
                     // If this is a public room, update the public room list
@@ -150,7 +151,7 @@ io.on('connection', (socket) => {
             }
             
             // Validate the prompt template
-            const validation = CONFIG.validatePrompt(promptTemplate);
+            const validation = PROMPT_CONFIG.validatePrompt(promptTemplate);
             if (!validation.valid) {
                 socket.emit('testImageResult', { error: 'Invalid prompt template: ' + validation.error });
                 return;
@@ -420,7 +421,7 @@ function initializeGame(roomCode, socketId, username, isPublic = false) {
         emptyRoomTimestamp: null,     // Track when the room becomes empty
         singlePlayerTimestamp: null,  // Track when the room has only one player
         // Default AI generation prompt template
-        customPrompt: CONFIG.DEFAULT_PROMPT
+        customPrompt: PROMPT_CONFIG.DEFAULT_PROMPT
     });
     
     // If it's a public room, add it to the public rooms list

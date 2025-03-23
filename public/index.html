@@ -7,28 +7,41 @@
 <body>
     <div id="lobby">
         <h1>Imageinary</h1>
-        <input type="text" id="username" placeholder="Your Username">
-        <button onclick="createRoom()">Create Game</button>
-        <input type="text" id="roomCode" placeholder="Enter Room Code">
-        <button onclick="joinRoom()">Join Game</button>
+        <div class="lobby-form">
+            <div class="form-group">
+                <input type="text" id="username" autocomplete="nickname" placeholder="Enter your name">
+                <button onclick="createRoom()" class="primary-btn">Create New Game</button>
+            </div>
+            <div class="separator">
+                <span>or</span>
+            </div>
+            <div class="form-group">
+                <div class="join-row">
+                    <input type="text" id="roomCode" placeholder="Enter room code">
+                    <button onclick="joinRoom()" class="secondary-btn">Join Game</button>
+                </div>
+            </div>
+        </div>
         <div id="inviteLink" style="display: none;"></div>
     </div>
 
     <div id="game" style="display: none;">
         <h1>Imageinary</h1>
         <div id="prompt" style="display: none;">Draw: <span id="promptText"></span></div>
-        <div id="toolbar" style="display: none;">
-            <input type="color" id="colorPicker" value="#000000">
-            <select id="brushSize">
-                <option value="2">Small</option>
-                <option value="5" selected>Medium</option>
-                <option value="10">Large</option>
-            </select>
-            <button onclick="setEraser()">Eraser</button>
-            <button onclick="undo()">Undo</button>
-            <button onclick="clearCanvas()">Clear</button>
+        <div class="drawing-container">
+            <div id="toolbar" style="display: none;">
+                <input type="color" id="colorPicker" value="#000000" title="Choose color">
+                <select id="brushSize" title="Brush size">
+                    <option value="2">Small</option>
+                    <option value="5" selected>Medium</option>
+                    <option value="10">Large</option>
+                </select>
+                <button onclick="setEraser()">Eraser</button>
+                <button onclick="undo()">Undo</button>
+                <button onclick="clearCanvas()">Clear</button>
+            </div>
+            <canvas id="canvas" width="600" height="400"></canvas>
         </div>
-        <canvas id="canvas" width="600" height="400"></canvas>
         <div id="gameInfo">
             <span>🏠 <span id="currentRoom" class="copyable" onclick="copyToClipboard(this.textContent)" title="Click to copy"></span></span>
             <span>🔄 <span id="round"></span></span>

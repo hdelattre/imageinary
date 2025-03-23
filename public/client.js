@@ -10,6 +10,67 @@ let drawingUpdateBuffer = 0;
 ctx.lineCap = 'round';
 ctx.lineJoin = 'round';
 
+// Initialize the canvas with a white background
+// List of fun placeholder names
+const placeholderNames = [
+    "ArtistAnon", "SketchWiz", "PixelPro", "DoodleDiva",
+    "ScribbleGuru", "DrawMaster", "PenPal", "Picasso2.0",
+    "InkInspired", "CanvasChamp", "BrushBaron", "SketchSage"
+];
+
+// Get a random name from the list
+function getRandomName() {
+    return placeholderNames[Math.floor(Math.random() * placeholderNames.length)];
+}
+
+window.addEventListener('load', () => {
+    clearDrawCanvas();
+    
+    // Load saved username from localStorage
+    const savedUsername = localStorage.getItem('imageinary_username');
+    const usernameInput = document.getElementById('username');
+    
+    if (savedUsername) {
+        usernameInput.value = savedUsername;
+    } else {
+        // Set a random placeholder name
+        usernameInput.placeholder = getRandomName();
+    }
+    
+    // Auto-focus the username field if empty, otherwise the room code field
+    if (!usernameInput.value) {
+        usernameInput.focus();
+    } else {
+        document.getElementById('roomCode').focus();
+    }
+    
+    // Add keystroke handlers for the lobby form
+    usernameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            // If room code is filled, join room, otherwise create room
+            const roomCode = document.getElementById('roomCode').value.trim();
+            if (roomCode) {
+                joinRoom();
+            } else {
+                createRoom();
+            }
+        }
+    });
+    
+    document.getElementById('roomCode').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            joinRoom();
+        }
+    });
+});
+
+// Function to clear canvas with white background
+function clearDrawCanvas() {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+}
+
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text)
         .then(() => {
@@ -26,14 +87,43 @@ function copyToClipboard(text) {
 }
 
 function createRoom() {
-    const username = document.getElementById('username').value.trim();
-    if (username) socket.emit('createRoom', username);
+    let username = document.getElementById('username').value.trim();
+    let isAutoName = false;
+    
+    // If no username is provided, use the placeholder
+    if (!username) {
+        username = document.getElementById('username').placeholder;
+        isAutoName = true;
+    }
+    
+    if (username) {
+        // Only save user-entered names, not auto-generated ones
+        if (!isAutoName) {
+            localStorage.setItem('imageinary_username', username);
+        }
+        socket.emit('createRoom', username);
+    }
 }
 
 function joinRoom() {
-    const username = document.getElementById('username').value.trim();
+    let username = document.getElementById('username').value.trim();
+    let isAutoName = false;
+    
+    // If no username is provided, use the placeholder
+    if (!username) {
+        username = document.getElementById('username').placeholder;
+        isAutoName = true;
+    }
+    
     const roomCode = document.getElementById('roomCode').value.trim().toUpperCase() || new URLSearchParams(window.location.search).get('room');
-    if (username && roomCode) socket.emit('joinRoom', { roomCode, username });
+    
+    if (username && roomCode) {
+        // Only save user-entered names, not auto-generated ones
+        if (!isAutoName) {
+            localStorage.setItem('imageinary_username', username);
+        }
+        socket.emit('joinRoom', { roomCode, username });
+    }
 }
 
 document.getElementById('chatInput').addEventListener('keypress', (e) => {
@@ -114,7 +204,7 @@ function undo() {
         const lastState = undoStack.pop();
         const img = new Image();
         img.onload = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            clearDrawCanvas();
             ctx.drawImage(img, 0, 0);
             sendDrawingUpdate();
         };
@@ -125,7 +215,7 @@ function undo() {
 function clearCanvas() {
     if (socket.id === document.getElementById('drawer')?.dataset?.id) {
         undoStack.push(canvas.toDataURL());
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        clearDrawCanvas();
         sendDrawingUpdate();
     }
 }
@@ -167,7 +257,7 @@ socket.on('newTurn', ({ drawer, drawerId, round }) => {
     document.getElementById('round').textContent = round;
     
     // Reset drawing state
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    clearDrawCanvas();
     undoStack = [];
     lastDrawingSent = null;
     drawingUpdateBuffer = 0;
@@ -200,7 +290,7 @@ socket.on('newPrompt', (prompt) => {
 socket.on('drawingUpdate', (drawingData) => {
     if (!drawingData) {
         // Clear canvas if empty data is received
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        clearDrawCanvas();
         lastDrawingSent = '';
         return;
     }
@@ -215,7 +305,7 @@ socket.on('drawingUpdate', (drawingData) => {
     
     const img = new Image();
     img.onload = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        clearDrawCanvas();
         ctx.drawImage(img, 0, 0);
     };
     img.src = drawingData;

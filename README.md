@@ -49,7 +49,3 @@ An online Pictionary-style game with AI image generation. Players take turns dra
 - **Backend**: Node.js, Express, Socket.IO
 - **Image Generation**: Google's Generative AI (Gemini)
 - **Data Storage**: In-memory (game state is lost on server restart)
-
-## License
-
-MIT

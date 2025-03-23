@@ -2,14 +2,16 @@ body {
     font-family: Arial, sans-serif;
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start; /* Changed from center to prevent cutoff */
     min-height: 100vh;
     margin: 0;
     background-color: #f0f0f0;
-    padding: 20px 0;
+    padding: 0;
     box-sizing: border-box;
     overflow-y: auto;
 }
+
+/* Remove this to prevent cut-offs */
 
 #lobby {
     background: white;
@@ -31,8 +33,9 @@ body {
     width: 100%;
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 40px);
+    min-height: 600px;
     overflow-y: auto;
+    margin-top: 10px; /* Add space from top */
 }
 
 #lobby h1 {
@@ -183,7 +186,8 @@ button {
     display: flex;
     justify-content: space-around;
     align-items: center;
-    padding: 5px 8px;
+    padding: 0;
+    gap: 0;
     background: #f0f0f0;
     border-radius: 5px;
     font-size: 1em;
@@ -219,9 +223,9 @@ button {
 .chat-container {
     position: relative;
     display: flex;
-    height: 150px; /* Reduced height for smaller screens */
-    min-height: 100px;
-    max-height: 400px;
+    height: 250px;
+    min-height: 150px;
+    flex: 1;
     border: 1px solid #333;
     background: #f9f9f9;
     margin-bottom: 0;
@@ -264,6 +268,8 @@ button {
     padding: 10px;
     text-align: left;
     font-family: Arial, sans-serif;
+    min-height: 150px;
+    max-height: 350px;
 }
 
 #chat > div {
@@ -404,12 +410,13 @@ button {
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin: 0 auto 15px auto;
+    margin: 0 auto 10px auto;
     width: 100%;
+    flex: 0 0 auto;
 }
 
 #toolbar {
-    margin-bottom: 8px;
+    margin: 5px 0 10px 0;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -420,8 +427,7 @@ button {
     border: 1px solid #eaeaea;
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     align-self: center;
-    position: sticky;
-    top: 0;
+    position: relative; /* Changed from sticky to prevent cut-off */
     z-index: 100;
     width: auto;
     white-space: nowrap;
@@ -464,10 +470,6 @@ button {
         margin: 0 0 10px 0;
     }
     
-    .drawing-container {
-        min-height: 380px;
-    }
-    
     #canvas {
         height: 350px;
     }
@@ -494,11 +496,6 @@ button {
     #gameInfo {
         margin: 5px 0;
         padding: 5px;
-    }
-    
-    .drawing-container {
-        min-height: 350px;
-        margin-bottom: 5px;
     }
     
     #canvas {
@@ -558,7 +555,8 @@ button {
     #chat {
         width: 100%;
         padding: 8px;
-        height: 180px;
+        height: 250px;
+        flex: 1;
     }
 
     /* Adjust toolbar for wrapping and smaller buttons */
@@ -588,8 +586,6 @@ button {
         flex-wrap: wrap;
         justify-content: space-around;
         align-items: center;
-        padding: 5px;
-        gap: 10px;
     }
 
     #gameInfo span {
@@ -660,11 +656,6 @@ button {
 
 #toolbar button {
     min-height: 28px;
-}
-
-/* Add padding at bottom to prevent keyboard overlap */
-body {
-    padding-bottom: 20vh;
 }
 
 /* Modal styles for URL sharing */

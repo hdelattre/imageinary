@@ -117,6 +117,9 @@ io.on('connection', (socket) => {
             const players = Array.from(game.players.keys());
             const isHost = players.length > 0 && players[0] === socket.id;
             callback(isHost);
+        } else if (typeof callback === 'function') {
+            // If game doesn't exist, user can't be host
+            callback(false);
         }
     });
     
@@ -323,6 +326,10 @@ io.on('connection', (socket) => {
         // Clean up player from games
         games.forEach((game, roomCode) => {
             if (game.players.has(socket.id)) {
+                // Store this info before removing the player
+                const wasDrawer = game.currentDrawer === socket.id;
+                
+                // Now remove the player
                 game.players.delete(socket.id);
                 
                 // Check player count after removal
@@ -346,13 +353,15 @@ io.on('connection', (socket) => {
                     game.singlePlayerTimestamp = null;
                 }
                 
-                // If the drawer left, start a new turn
-                if (game.currentDrawer === socket.id && game.players.size > 0) {
+                // If the drawer left and there are still players, start a new turn
+                if (wasDrawer && game.players.size > 0) {
                     nextTurn(roomCode);
                 }
                 
-                // Update game state for remaining players
-                updateGameState(roomCode);
+                // Update game state for remaining players if there are any
+                if (game.players.size > 0) {
+                    updateGameState(roomCode);
+                }
                 
                 // Update public rooms list if this is a public room
                 if (game.isPublic) {
@@ -779,13 +788,17 @@ function updatePublicRoomsList(roomCode) {
     const game = games.get(roomCode);
     if (!game || !game.isPublic) return;
     
+    // Check if the game has any players before trying to access their data
+    const players = Array.from(game.players.values());
+    const hostName = players.length > 0 ? players[0].username : "Unknown Host";
+    
     // Create a summary of the room for the public listing
     const roomInfo = {
         roomCode,
         playerCount: game.players.size,
         round: game.round,
         createdAt: game.createdAt,
-        hostName: Array.from(game.players.values())[0].username,  // First player is the host
+        hostName: hostName,
         prompt: game.customPrompt
     };
     
@@ -837,9 +850,14 @@ function cleanupRooms() {
         
         // For rooms that still exist, update public listing
         if (game.isPublic && publicRooms.has(roomCode)) {
+            // Get current players to check for host name
+            const players = Array.from(game.players.values());
+            const hostName = players.length > 0 ? players[0].username : "Unknown Host";
+            
             const roomInfo = publicRooms.get(roomCode);
             roomInfo.playerCount = game.players.size;
             roomInfo.round = game.round;
+            roomInfo.hostName = hostName; // Make sure host name is updated if host changes
             publicRooms.set(roomCode, roomInfo);
         }
     });

@@ -2,54 +2,53 @@ body {
     font-family: Arial, sans-serif;
     display: flex;
     justify-content: center;
-    align-items: flex-start; /* Changed from center to prevent cutoff */
+    align-items: flex-start;
     min-height: 100vh;
     margin: 0;
-    background-color: #f0f0f0;
+    background-color: #121212;
+    color: #e0e0e0;
     padding: 0;
     box-sizing: border-box;
     overflow-y: auto;
 }
 
-/* Remove this to prevent cut-offs */
-
 #lobby {
-    background: white;
+    background: #1e1e1e;
     padding: 30px;
     border-radius: 12px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 5px 20px rgba(255, 255, 255, 0.1);
     text-align: center;
     max-width: 500px;
     width: 100%;
 }
 
 #game {
-    background: white;
+    background: #1e1e1e;
     padding: 20px;
     border-radius: 12px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 5px 20px rgba(255, 255, 255, 0.1);
     text-align: center;
-    max-width: 640px; /* Increased to fit the canvas properly */
+    max-width: 640px;
     width: 100%;
     display: flex;
     flex-direction: column;
     min-height: 600px;
     overflow-y: auto;
-    margin-top: 10px; /* Add space from top */
+    margin-top: 10px;
 }
 
 #lobby h1 {
     color: #3498db;
     margin-bottom: 30px;
     font-size: 42px;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+    text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.1);
 }
 
 #game h1 {
     color: #3498db;
     margin: 0 0 15px 0;
     font-size: 24px;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+    text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.1);
 }
 
 .lobby-form {
@@ -74,12 +73,14 @@ body {
 
 input:not([type="color"]) {
     padding: 12px 15px;
-    border: 1px solid #ddd;
+    border: 1px solid #444;
     border-radius: 6px;
     font-size: 16px;
     width: 100%;
     transition: border-color 0.3s;
     box-sizing: border-box;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
 }
 
 input:not([type="color"]):focus {
@@ -98,12 +99,13 @@ input[type="color"] {
     padding: 0;
     margin: 0;
     vertical-align: middle;
+    background-color: #2a2a2a;
 }
 
 input[type="color"]::-webkit-color-swatch-wrapper {
     padding: 0;
     border-radius: 4px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid #444;
 }
 
 input[type="color"]::-webkit-color-swatch {
@@ -125,6 +127,13 @@ button {
     font-size: 16px;
     font-weight: bold;
     transition: all 0.3s;
+    background-color: #3498db;
+    color: #ffffff;
+}
+
+button:hover {
+    background-color: #2980b9;
+    transform: translateY(-2px);
 }
 
 .primary-btn {
@@ -135,7 +144,6 @@ button {
 
 .primary-btn:hover {
     background-color: #2980b9;
-    transform: translateY(-2px);
 }
 
 .secondary-btn {
@@ -146,14 +154,13 @@ button {
 
 .secondary-btn:hover {
     background-color: #27ae60;
-    transform: translateY(-2px);
 }
 
 .separator {
     display: flex;
     align-items: center;
     text-align: center;
-    color: #999;
+    color: #666;
     margin: 5px 0;
 }
 
@@ -161,7 +168,7 @@ button {
 .separator::after {
     content: '';
     flex: 1;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #333;
 }
 
 .separator span {
@@ -170,13 +177,13 @@ button {
 }
 
 #canvas {
-    border: 2px solid #333;
+    border: 2px solid #555;
     background: white;
     max-width: 100%;
     box-sizing: border-box;
     display: block;
     margin: 0 auto 0 auto;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 5px rgba(255, 255, 255, 0.1);
     width: 600px;
     height: 400px;
 }
@@ -188,10 +195,11 @@ button {
     align-items: center;
     padding: 0;
     gap: 0;
-    background: #f0f0f0;
+    background: #2a2a2a;
     border-radius: 5px;
     font-size: 1em;
     min-height: 32px;
+    color: #e0e0e0;
 }
 
 #gameInfo span {
@@ -205,10 +213,11 @@ button {
     align-items: center;
     justify-content: center;
     padding: 2px 8px;
-    background-color: #f5f5f5;
+    background-color: #333;
     border-radius: 4px;
-    border: 1px solid #ddd;
+    border: 1px solid #444;
     height: 24px;
+    color: #e0e0e0;
 }
 
 .copyable {
@@ -226,17 +235,17 @@ button {
     height: 250px;
     min-height: 150px;
     flex: 1;
-    border: 1px solid #333;
-    background: #f9f9f9;
+    border: 1px solid #444;
+    background: #2a2a2a;
     margin-bottom: 0;
     width: 100%;
 }
 
 .input-container {
     display: flex;
-    border: 1px solid #333;
+    border: 1px solid #444;
     border-top: none;
-    background: #f9f9f9;
+    background: #2a2a2a;
     margin-top: 0;
     width: 100%;
 }
@@ -244,11 +253,12 @@ button {
 #players {
     width: 120px;
     padding: 10px;
-    border-right: 1px solid #ccc;
-    background: #f0f0f0;
+    border-right: 1px solid #444;
+    background: #333;
     font-size: 0.9em;
     overflow-y: auto;
     text-align: left;
+    color: #e0e0e0;
 }
 
 #players strong {
@@ -270,6 +280,7 @@ button {
     font-family: Arial, sans-serif;
     min-height: 150px;
     max-height: 350px;
+    color: #e0e0e0;
 }
 
 #chat > div {
@@ -277,7 +288,7 @@ button {
     word-wrap: break-word;
     text-align: left;
     padding-right: 10px;
-    border-bottom: 1px dotted #ddd;
+    border-bottom: 1px dotted #444;
     padding-bottom: 8px;
     line-height: 1.3;
 }
@@ -286,7 +297,7 @@ button {
     color: #888;
     font-style: italic;
     text-align: center !important;
-    background-color: #f5f5f5;
+    background-color: #333;
     padding: 5px 8px !important;
     border-radius: 4px;
     font-size: 0.9em;
@@ -298,8 +309,10 @@ button {
     box-sizing: border-box;
     border: none;
     border-radius: 0;
-    font-family: Arial, sans-serif; /* Ensures emoji compatibility */
+    font-family: Arial, sans-serif;
     height: 40px;
+    background-color: #333;
+    color: #e0e0e0;
 }
 
 #prompt {
@@ -317,12 +330,13 @@ button {
 
 #voting {
     width: 100%;
-    background: white;
+    background: #1e1e1e;
     padding: 15px;
-    border: 2px solid #333;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    border: 2px solid #444;
+    box-shadow: 0 2px 5px rgba(255, 255, 255, 0.1);
     box-sizing: border-box;
     min-height: 400px;
+    color: #e0e0e0;
 }
 
 #voting h2 {
@@ -342,10 +356,10 @@ button {
 }
 
 .image-vote-container {
-    background: white;
+    background: #2a2a2a;
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
     display: flex;
     flex-direction: column;
     transition: transform 0.2s;
@@ -360,13 +374,14 @@ button {
     height: 180px;
     object-fit: contain;
     background: #f0f0f0;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #444;
 }
 
 .image-info {
     padding: 12px;
     font-size: 0.9em;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #444;
+    color: #e0e0e0;
 }
 
 .vote-button {
@@ -399,7 +414,7 @@ button {
     color: #ff6f61;
     text-align: center;
     padding: 10px;
-    background: #f5f5f5;
+    background: #333;
     border-radius: 4px;
     box-sizing: border-box;
     margin-top: 15px;
@@ -422,12 +437,12 @@ button {
     align-items: center;
     gap: 6px;
     padding: 8px 12px;
-    background-color: #f8f8f8;
+    background-color: #2a2a2a;
     border-radius: 6px;
-    border: 1px solid #eaeaea;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid #444;
+    box-shadow: 0 1px 3px rgba(255, 255, 255, 0.05);
     align-self: center;
-    position: relative; /* Changed from sticky to prevent cut-off */
+    position: relative;
     z-index: 100;
     width: auto;
     white-space: nowrap;
@@ -435,9 +450,10 @@ button {
 
 #toolbar select {
     padding: 4px 6px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid #444;
     border-radius: 4px;
-    background-color: white;
+    background-color: #333;
+    color: #e0e0e0;
     cursor: pointer;
     font-size: 13px;
     height: 28px;
@@ -450,20 +466,19 @@ button {
     font-size: 13px;
     height: 28px;
     min-width: 55px;
-    background-color: white;
-    border: 1px solid #e0e0e0;
-    color: #555;
+    background-color: #333;
+    border: 1px solid #444;
+    color: #e0e0e0;
     font-weight: normal;
     vertical-align: middle;
     margin: 0;
 }
 
 #toolbar button:hover {
-    background-color: #f0f0f0;
+    background-color: #444;
     transform: none;
 }
 
-/* Media queries for responsive design */
 @media (max-height: 800px) {
     #game h1 {
         font-size: 22px;
@@ -516,9 +531,7 @@ button {
     }
 }
 
-/* Responsive design for mobile devices */
 @media (max-width: 600px) {
-    /* Adjust canvas to fit smaller screens */
     #canvas {
         width: 100%;
         height: auto;
@@ -526,28 +539,26 @@ button {
         max-height: 400px;
     }
     
-    /* Compactify the game info section */
     #gameInfo {
         padding: 4px 2px;
-        background: #f8f8f8;
+        background: #2a2a2a;
         border-radius: 4px;
         align-items: center;
         min-height: 30px;
     }
 
-    /* Stack chat and players vertically */
     .chat-container {
         display: flex;
         flex-direction: column;
         height: auto;
-        max-height: none; /* Remove fixed height constraint */
+        max-height: none;
         grid-template-columns: 1fr;
     }
 
     #players {
         width: 100%;
         border-right: none;
-        border-bottom: 1px solid #ccc;
+        border-bottom: 1px solid #444;
         padding: 8px;
         height: 120px;
     }
@@ -559,7 +570,6 @@ button {
         flex: 1;
     }
 
-    /* Adjust toolbar for wrapping and smaller buttons */
     #toolbar {
         flex-wrap: wrap;
         justify-content: center;
@@ -575,13 +585,11 @@ button {
         font-size: 12px;
     }
 
-    /* Ensure game container adapts */
     #game {
         padding: 10px;
         max-width: 100%;
     }
 
-    /* Keep game info in a single row until very small screens */
     #gameInfo {
         flex-wrap: wrap;
         justify-content: space-around;
@@ -593,12 +601,10 @@ button {
         font-size: 0.9em;
     }
 
-    /* Voting images in a single column */
     #voting-images {
         grid-template-columns: 1fr;
     }
     
-    /* Adjust lobby form for smaller screens */
     .lobby-form {
         width: 90%;
         padding: 15px;
@@ -618,7 +624,6 @@ button {
     }
 }
 
-/* Extra small screens - organize in a 2x2 grid when absolutely needed */
 @media (max-width: 380px) {
     #gameInfo {
         display: grid;
@@ -628,20 +633,18 @@ button {
         justify-items: center;
     }
     
-    /* Style the grid items */
     .game-info-item {
         padding: 2px 4px;
         border-radius: 3px;
-        background-color: rgba(255, 255, 255, 0.6);
+        background-color: #333;
         text-align: center;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 2px rgba(255, 255, 255, 0.05);
         min-height: 32px;
         display: flex;
         align-items: center;
         justify-content: center;
     }
     
-    /* Ensure room container stays together */
     .room-container {
         max-width: 100%;
         overflow: hidden;
@@ -649,7 +652,6 @@ button {
     }
 }
 
-/* Ensure touch-friendly button sizes globally */
 button {
     min-height: 32px;
 }
@@ -658,14 +660,13 @@ button {
     min-height: 28px;
 }
 
-/* Modal styles for URL sharing */
 .modal {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.7);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -673,13 +674,14 @@ button {
 }
 
 .modal-content {
-    background: white;
+    background: #1e1e1e;
     padding: 20px;
     border-radius: 8px;
     max-width: 400px;
     width: 90%;
     text-align: center;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 8px rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
 }
 
 .modal-content h2 {
@@ -693,6 +695,9 @@ button {
 
 .modal-content input {
     margin: 15px 0;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    border: 1px solid #444;
 }
 
 .modal-content button {
@@ -710,7 +715,6 @@ button {
     background: #2980b9;
 }
 
-/* Game info item and room styles */
 .game-info-item {
     display: inline-flex;
     align-items: center;
@@ -731,7 +735,7 @@ button {
     height: 24px;
     padding: 0;
     background: transparent;
-    border: 1px solid #ddd;
+    border: 1px solid #444;
     border-radius: 4px;
     cursor: pointer;
     display: flex;
@@ -741,7 +745,7 @@ button {
 }
 
 .icon-btn:hover {
-    background: #f0f0f0;
+    background: #333;
     transform: translateY(-1px);
 }
 

@@ -22,7 +22,6 @@
                 </div>
             </div>
         </div>
-        <div id="inviteLink" style="display: none;"></div>
     </div>
 
     <div id="game" style="display: none;">
@@ -53,7 +52,12 @@
             </div>
         </div>
         <div id="gameInfo">
-            <span>🏠 <span id="currentRoom" class="copyable" onclick="copyToClipboard(this.textContent)" title="Click to copy"></span></span>
+            <span class="room-container">
+                🏠 <span id="currentRoom" class="copyable" onclick="copyToClipboard(this.textContent)" title="Click to copy room code"></span>
+                <button id="inviteBtn" class="icon-btn" title="Copy invite link" onclick="copyRoomLink()">
+                    <span class="icon">📩</span>
+                </button>
+            </span>
             <span>🔄 <span id="round"></span></span>
             <span>✏️ <span id="drawer" data-id=""></span></span>
             <span id="timer"></span>

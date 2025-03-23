@@ -37,13 +37,6 @@ window.addEventListener('load', () => {
         usernameInput.placeholder = getRandomName();
     }
     
-    // Auto-focus the username field if empty, otherwise the room code field
-    if (!usernameInput.value) {
-        usernameInput.focus();
-    } else {
-        document.getElementById('roomCode').focus();
-    }
-    
     // Add keystroke handlers for the lobby form
     usernameInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
@@ -62,6 +55,66 @@ window.addEventListener('load', () => {
             joinRoom();
         }
     });
+    
+    // Check for room param in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
+    
+    if (roomParam) {
+        // Update the room code input with the URL parameter
+        document.getElementById('roomCode').value = roomParam;
+        
+        // If we have a username in local storage, join directly
+        if (savedUsername) {
+            joinRoom();
+        } else {
+            // Show username prompt modal
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h2>Enter Your Username</h2>
+                    <p>Please enter a username to join room ${roomParam}</p>
+                    <input type="text" id="modalUsername" placeholder="${getRandomName()}">
+                    <button id="joinWithUsername">Join Game</button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Auto-focus the username input
+            setTimeout(() => document.getElementById('modalUsername').focus(), 100);
+            
+            // Handle modal join button
+            document.getElementById('joinWithUsername').addEventListener('click', () => {
+                const modalUsername = document.getElementById('modalUsername').value.trim() || 
+                    document.getElementById('modalUsername').placeholder;
+                
+                // Save username to localStorage
+                localStorage.setItem('imageinary_username', modalUsername);
+                
+                // Update the main username field
+                document.getElementById('username').value = modalUsername;
+                
+                // Remove the modal and join
+                document.body.removeChild(modal);
+                joinRoom();
+            });
+            
+            // Handle enter key in modal
+            document.getElementById('modalUsername').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('joinWithUsername').click();
+                }
+            });
+        }
+    } else {
+        // Auto-focus the username field if empty, otherwise the room code field
+        if (!usernameInput.value) {
+            usernameInput.focus();
+        } else {
+            document.getElementById('roomCode').focus();
+        }
+    }
 });
 
 // Function to clear canvas with white background
@@ -74,14 +127,26 @@ function clearDrawCanvas() {
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text)
         .then(() => {
-            // Flash effect to indicate copy success
-            const roomElement = document.getElementById('currentRoom');
-            roomElement.style.backgroundColor = '#4CAF50';
-            roomElement.style.color = 'white';
-            setTimeout(() => {
-                roomElement.style.backgroundColor = '';
-                roomElement.style.color = '';
-            }, 500);
+            // If copying the room link (not the room code itself)
+            if (text.includes('?room=')) {
+                const inviteBtn = document.getElementById('inviteBtn');
+                const originalIcon = inviteBtn.innerHTML;
+                inviteBtn.innerHTML = `<span class="icon">✓</span>`;
+                inviteBtn.style.backgroundColor = '#4CAF50';
+                setTimeout(() => {
+                    inviteBtn.innerHTML = originalIcon;
+                    inviteBtn.style.backgroundColor = '';
+                }, 1500);
+            } else {
+                // Flash effect to indicate success for room code copy
+                const roomElement = document.getElementById('currentRoom');
+                roomElement.style.backgroundColor = '#4CAF50';
+                roomElement.style.color = 'white';
+                setTimeout(() => {
+                    roomElement.style.backgroundColor = '';
+                    roomElement.style.color = '';
+                }, 500);
+            }
         })
         .catch(err => console.error('Failed to copy: ', err));
 }
@@ -109,9 +174,14 @@ function joinRoom() {
     let username = document.getElementById('username').value.trim();
     let isAutoName = false;
     
-    // If no username is provided, use the placeholder
+    // If no username is provided, use the placeholder but not "Enter your name"
     if (!username) {
-        username = document.getElementById('username').placeholder;
+        // Make sure we don't use the placeholder text "Enter your name" as a username
+        if (document.getElementById('username').placeholder === "Enter your name") {
+            username = getRandomName();
+        } else {
+            username = document.getElementById('username').placeholder;
+        }
         isAutoName = true;
     }
     
@@ -244,11 +314,12 @@ function startGame(roomCode, username, inviteLink) {
     // Initialize timer
     document.getElementById('timer').textContent = getTimeString('--');
     
-    if (inviteLink) {
-        const inviteDiv = document.getElementById('inviteLink');
-        inviteDiv.style.display = 'block';
-        inviteDiv.innerHTML = `Invite others: <a href="${inviteLink}" target="_blank">${inviteLink}</a>`;
+    // Generate shareable link if not provided
+    if (!inviteLink) {
+        inviteLink = `${window.location.origin}/?room=${roomCode}`;
     }
+    
+    // We'll use an icon in the game info section instead of a separate invite button
     
     // Ensure the game interface is visible and scrollable
     document.body.style.overflow = 'auto';
@@ -514,4 +585,9 @@ socket.on('startTimer', (seconds) => {
     startTimer(seconds);
 });
 
-if (new URLSearchParams(window.location.search).get('room')) joinRoom();
+// Function to copy the room link
+function copyRoomLink() {
+    const roomCode = document.getElementById('currentRoom').textContent;
+    const roomLink = `${window.location.origin}/?room=${roomCode}`;
+    copyToClipboard(roomLink);
+}

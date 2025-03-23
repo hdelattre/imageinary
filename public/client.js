@@ -7,11 +7,11 @@ let undoStack = [];
 let lastDrawingSent = null;
 let drawingUpdateBuffer = 0;
 
-// Default prompt for AI generation
-const defaultPrompt = "Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. It must look like the provided sketch! Do not modify important shapes/silhouettes in the sketch, just fill them in. Make it look like the provided guess: {guess}";
+// For backwards compatibility
+const defaultPrompt = CONFIG.DEFAULT_PROMPT;
 
 // Get custom prompt from localStorage or use default
-let customPrompt = localStorage.getItem('imageinary_custom_prompt') || defaultPrompt;
+let customPrompt = localStorage.getItem('imageinary_custom_prompt') || CONFIG.DEFAULT_PROMPT;
 
 ctx.lineCap = 'round';
 ctx.lineJoin = 'round';
@@ -887,7 +887,7 @@ function openPromptEditorWithPrompt(prompt) {
 
 // Function to update the room's prompt
 function updateRoomPrompt() {
-    const newPrompt = document.getElementById('promptTemplate').value.trim();
+    let newPrompt = document.getElementById('promptTemplate').value.trim();
     const roomCode = document.getElementById('currentRoom').textContent;
     
     if (!newPrompt) {
@@ -898,6 +898,12 @@ function updateRoomPrompt() {
     if (!newPrompt.includes('{guess}')) {
         alert('Prompt must include {guess} placeholder!');
         return;
+    }
+    
+    // Cap the prompt length
+    if (newPrompt.length > CONFIG.MAX_PROMPT_LENGTH) {
+        newPrompt = newPrompt.slice(0, CONFIG.MAX_PROMPT_LENGTH);
+        alert(`Prompt has been trimmed to ${CONFIG.MAX_PROMPT_LENGTH} characters.`);
     }
     
     // Send the updated prompt to the server
@@ -914,9 +920,9 @@ function updateRoomPrompt() {
 
 // Prompt Editor functionality
 function initPromptEditor() {
-    // Set initial prompt in the editor
+    // Set initial prompt in the editor (ensure it's within length limit)
     const promptTemplate = document.getElementById('promptTemplate');
-    promptTemplate.value = customPrompt;
+    promptTemplate.value = customPrompt.slice(0, CONFIG.MAX_PROMPT_LENGTH);
     
     // Setup test canvas
     const testCanvas = document.getElementById('testCanvas');
@@ -955,9 +961,9 @@ function initPromptEditor() {
     });
     
     document.getElementById('resetPromptBtn').addEventListener('click', () => {
-        promptTemplate.value = defaultPrompt;
-        customPrompt = defaultPrompt;
-        localStorage.setItem('imageinary_custom_prompt', defaultPrompt);
+        promptTemplate.value = CONFIG.DEFAULT_PROMPT;
+        customPrompt = CONFIG.DEFAULT_PROMPT;
+        localStorage.setItem('imageinary_custom_prompt', CONFIG.DEFAULT_PROMPT);
         alert('Prompt reset to default!');
     });
     

@@ -6,6 +6,9 @@ const socketIo = require('socket.io');
 const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 
+// Import shared configuration
+const CONFIG = require('./public/shared-config');
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
@@ -55,7 +58,8 @@ io.on('connection', (socket) => {
         // Store custom prompt if provided
         if (customPrompt) {
             const game = games.get(roomCode);
-            game.customPrompt = sanitizeMessage(customPrompt, './!?-,\'');
+            // Cap prompt length and sanitize
+            game.customPrompt = sanitizeMessage(customPrompt.slice(0, CONFIG.MAX_PROMPT_LENGTH), './!?-,\'');
         }
         
         // If room is public, add it to the public rooms list
@@ -114,8 +118,8 @@ io.on('connection', (socket) => {
             const isHost = players.length > 0 && players[0] === socket.id;
             
             if (isHost) {
-                // Update the custom prompt
-                game.customPrompt = sanitizeMessage(prompt, './!?-,\'');
+                // Update the custom prompt with length limit
+                game.customPrompt = sanitizeMessage(prompt.slice(0, CONFIG.MAX_PROMPT_LENGTH), './!?-,\'');
                 console.log(`Room ${roomCode} prompt updated by host`);
                 
                 // If this is a public room, update the public room list
@@ -397,7 +401,7 @@ function initializeGame(roomCode, socketId, username, isPublic = false) {
         emptyRoomTimestamp: null,     // Track when the room becomes empty
         singlePlayerTimestamp: null,  // Track when the room has only one player
         // Default AI generation prompt template
-        customPrompt: "Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. It must look like the provided sketch! Do not modify important shapes/silhouettes in the sketch, just fill them in. Make it look like the provided guess: {guess}"
+        customPrompt: CONFIG.DEFAULT_PROMPT
     });
     
     // If it's a public room, add it to the public rooms list

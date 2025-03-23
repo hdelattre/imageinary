@@ -14,7 +14,7 @@
         <div class="lobby-form">
             <div class="form-group">
                 <input type="text" id="username" autocomplete="nickname" placeholder="Enter your name">
-                <button onclick="createRoom()" class="primary-btn">Create New Game</button>
+                <button type="button" onclick="createRoom()" class="primary-btn">Create New Game</button>
             </div>
             <div class="separator">
                 <span>or</span>
@@ -22,13 +22,13 @@
             <div class="form-group">
                 <div class="join-row">
                     <input type="text" id="roomCode" placeholder="Enter room code">
-                    <button onclick="joinRoom()" class="secondary-btn">Join Game</button>
+                    <button type="button" onclick="joinRoom()" class="secondary-btn">Join Game</button>
                 </div>
             </div>
             <div class="separator">
                 <span>or</span>
             </div>
-            <button id="promptEditorBtn" class="secondary-btn">Customize AI Prompt</button>
+            <button type="button" id="promptEditorBtn" class="secondary-btn">Customize AI Prompt</button>
         </div>
         
         <!-- Prompt Editor Modal -->
@@ -41,8 +41,8 @@
                     <textarea id="promptTemplate" rows="5" placeholder="Enter your custom prompt template..."></textarea>
                     <p class="prompt-help">Use <code>{guess}</code> as a placeholder for player guesses.</p>
                     <div class="editor-controls">
-                        <button id="savePromptBtn" class="primary-btn">Save Prompt</button>
-                        <button id="resetPromptBtn" class="secondary-btn">Reset to Default</button>
+                        <button type="button" id="savePromptBtn" class="primary-btn">Save Prompt</button>
+                        <button type="button" id="resetPromptBtn" class="secondary-btn">Reset to Default</button>
                     </div>
                 </div>
                 
@@ -53,12 +53,12 @@
                             <canvas id="testCanvas" width="300" height="200"></canvas>
                             <div class="test-tools">
                                 <input type="color" id="testColorPicker" value="#000000">
-                                <button id="testClearBtn">Clear</button>
+                                <button type="button" id="testClearBtn">Clear</button>
                             </div>
                         </div>
                         <div class="test-input">
                             <input type="text" id="testGuessInput" placeholder="Enter a sample guess...">
-                            <button id="testGenerateBtn" class="primary-btn">Generate Test Image</button>
+                            <button type="button" id="testGenerateBtn" class="primary-btn">Generate Test Image</button>
                         </div>
                     </div>
                     <div id="testResult" class="test-result">
@@ -67,7 +67,7 @@
                     </div>
                 </div>
                 
-                <button id="closePromptEditorBtn" class="close-btn">&times;</button>
+                <button type="button" id="closePromptEditorBtn" class="close-btn">&times;</button>
             </div>
         </div>
     </div>
@@ -85,9 +85,9 @@
                         <option value="5" selected>M</option>
                         <option value="10">L</option>
                     </select>
-                    <button id="eraserBtn" onclick="toggleEraser()">Eraser</button>
-                    <button onclick="undo()">Undo</button>
-                    <button onclick="clearCanvas()">Clear</button>
+                    <button type="button" id="eraserBtn" onclick="toggleEraser()">Eraser</button>
+                    <button type="button" onclick="undo()">Undo</button>
+                    <button type="button" onclick="clearCanvas()">Clear</button>
                 </div>
                 <canvas id="canvas" width="600" height="400"></canvas>
             </div>

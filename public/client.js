@@ -29,9 +29,14 @@ function getRandomName() {
     return placeholderNames[Math.floor(Math.random() * placeholderNames.length)];
 }
 
-// Prevent double-tap zoom on mobile
+// Only prevent default on elements that shouldn't trigger actions
 document.addEventListener('touchend', function(event) {
-    if (event.target.tagName !== 'INPUT' && event.target.tagName !== 'TEXTAREA') {
+    const nonActionTags = ['DIV', 'SPAN', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'CANVAS'];
+    
+    // Don't prevent default on interactive elements (buttons, inputs, etc.)
+    if (nonActionTags.includes(event.target.tagName) && 
+        !event.target.classList.contains('copyable') && 
+        !event.target.onclick) {
         event.preventDefault();
     }
 }, { passive: false });

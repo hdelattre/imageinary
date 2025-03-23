@@ -497,36 +497,44 @@ function tallyVotes(roomCode) {
         }
     });
     
-    // Find the winner(s)
-    let maxVotes = 0;
-    const winners = [];
+    // Calculate total voters (excluding the drawer)
+    const totalVoters = game.players.size - 1;
+    
+    // Find the winner(s) - now requiring > 50% of votes, not just the most votes
+    let winners = [];
     
     voteCount.forEach((votes, playerId) => {
-        if (votes > maxVotes) {
-            maxVotes = votes;
-            winners.length = 0;
-            winners.push(playerId);
-        } else if (votes === maxVotes && maxVotes > 0) {
+        // Check if player got more than 50% of votes
+        if (votes > totalVoters / 2) {
             winners.push(playerId);
         }
     });
     
     // Award points to winners
     let resultMessage = '';
-    if (winners.length > 0 && maxVotes > 0) {
+    if (winners.length > 0) {
         winners.forEach(winnerId => {
             game.players.get(winnerId).score += 1;
         });
         
+        // Get vote counts for the message
+        const winnerVotes = new Map();
+        winners.forEach(winnerId => {
+            winnerVotes.set(winnerId, voteCount.get(winnerId));
+        });
+        
         if (winners.length === 1) {
             const winnerName = game.players.get(winners[0]).username;
-            resultMessage = `${winnerName}'s image won with ${maxVotes} votes! They get a point!`;
+            const votes = voteCount.get(winners[0]);
+            resultMessage = `${winnerName}'s image won with ${votes} votes (>${Math.floor(totalVoters/2)} needed)! They get a point!`;
         } else {
-            const winnerNames = winners.map(id => game.players.get(id).username).join(', ');
-            resultMessage = `Tie! ${winnerNames} each get a point with ${maxVotes} votes!`;
+            const winnersList = winners.map(id => 
+                `${game.players.get(id).username} (${voteCount.get(id)} votes)`
+            ).join(', ');
+            resultMessage = `Multiple winners! ${winnersList} each get a point!`;
         }
     } else {
-        resultMessage = `No votes or tie with 0 votes. No points awarded.`;
+        resultMessage = `No image received more than 50% of votes. No points awarded.`;
     }
     
     io.to(roomCode).emit('votingResults', {

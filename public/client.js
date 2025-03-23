@@ -419,7 +419,15 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     });
 
     document.getElementById('chatInput').disabled = voting || socket.id === currentDrawer;
-    document.getElementById('toolbar').style.display = socket.id === currentDrawer ? 'block' : 'none';
+    
+    // Always show toolbar but disable it if not the drawer
+    const toolbar = document.getElementById('toolbar');
+    toolbar.style.display = 'flex';
+    if (socket.id === currentDrawer) {
+        toolbar.classList.remove('disabled');
+    } else {
+        toolbar.classList.add('disabled');
+    }
 });
 
 // Function to add system messages to chat
@@ -456,8 +464,14 @@ socket.on('newTurn', ({ drawer, drawerId, round }) => {
     document.getElementById('timer').textContent = getTimeString('--');
     document.getElementById('timer').style.color = '';
     
-    // Show drawing tools only for the drawer
-    document.getElementById('toolbar').style.display = socket.id === drawerId ? 'block' : 'none';
+    // Show drawing tools but disable if not the drawer
+    const toolbar = document.getElementById('toolbar');
+    toolbar.style.display = 'flex';
+    if (socket.id === drawerId) {
+        toolbar.classList.remove('disabled');
+    } else {
+        toolbar.classList.add('disabled');
+    }
     
     // Reset color picker and eraser state
     isEraser = false;

@@ -368,6 +368,7 @@ async function generateNewImage(roomCode) {
         io.to(roomCode).emit('error', 'Failed to generate images');
         
         // Skip to next turn
+        game.round++;
         startTurn(roomCode);
     }
 }

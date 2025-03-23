@@ -4,6 +4,7 @@
     <title>Imageinary</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#121212">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="stylesheet" href="style.css">
@@ -14,7 +15,10 @@
         <div class="lobby-form">
             <div class="form-group">
                 <input type="text" id="username" autocomplete="nickname" placeholder="Enter your name">
-                <button type="button" onclick="createRoom()" class="primary-btn">Create New Game</button>
+                <div class="room-buttons">
+                    <button type="button" onclick="createRoom(false)" class="primary-btn">Create Private Room</button>
+                    <button type="button" onclick="createRoom(true)" class="secondary-btn">Create Public Room</button>
+                </div>
             </div>
             <div class="separator">
                 <span>or</span>
@@ -24,6 +28,18 @@
                     <input type="text" id="roomCode" placeholder="Enter room code">
                     <button type="button" onclick="joinRoom()" class="secondary-btn">Join Game</button>
                 </div>
+            </div>
+            <div class="separator">
+                <span>or</span>
+            </div>
+            <div class="public-rooms-container">
+                <h3>Public Rooms</h3>
+                <div id="publicRoomsList" class="public-rooms-list">
+                    <div class="loading-rooms">Loading rooms...</div>
+                </div>
+                <button type="button" id="refreshRooms" class="icon-btn" title="Refresh rooms list">
+                    <span class="icon">🔄</span>
+                </button>
             </div>
             <div class="separator">
                 <span>or</span>

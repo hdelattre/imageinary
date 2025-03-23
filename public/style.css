@@ -209,6 +209,115 @@ button:active {
     font-style: italic;
 }
 
+/* Room buttons */
+.room-buttons {
+    display: flex;
+    gap: 10px;
+    margin: 10px 0;
+    width: 100%;
+}
+
+.room-buttons button {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+@media (max-width: 500px) {
+    .room-buttons {
+        flex-direction: column;
+        gap: 5px;
+    }
+}
+
+/* Public rooms list */
+.public-rooms-container {
+    width: 100%;
+    margin: 10px 0;
+    position: relative;
+}
+
+.public-rooms-container h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.1em;
+    color: #3498db;
+}
+
+.public-rooms-list {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid #444;
+    border-radius: 6px;
+    background-color: #2a2a2a;
+    padding: 5px;
+    margin-bottom: 10px;
+}
+
+.room-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    background-color: #333;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+
+.room-item:hover {
+    background-color: #444;
+}
+
+.room-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+}
+
+.room-host {
+    font-weight: bold;
+    color: #3498db;
+}
+
+.room-details {
+    font-size: 0.8em;
+    color: #aaa;
+}
+
+.room-join {
+    background-color: #2ecc71;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8em;
+}
+
+.loading-rooms {
+    padding: 20px;
+    text-align: center;
+    color: #888;
+    font-style: italic;
+}
+
+.no-rooms {
+    padding: 20px;
+    text-align: center;
+    color: #888;
+    font-style: italic;
+}
+
+#refreshRooms {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 28px;
+    height: 28px;
+}
+
 #canvas {
     border: 2px solid #555;
     background: white;

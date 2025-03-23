@@ -24,6 +24,7 @@ const model = genAI.getGenerativeModel({
 const games = new Map(); // roomCode -> gameData
 const drawings = new Map(); // roomCode -> drawingData
 const lastMessageTimes = new Map(); // Tracks last message time per player
+const publicRooms = new Map(); // Stores public room data for listing
 
 // Predefined prompts for the drawer
 const prompts = [
@@ -42,14 +43,14 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
 
-    socket.on('createRoom', (username, customPrompt) => {
+    socket.on('createRoom', (username, customPrompt, isPublic = false) => {
         username = sanitizeMessage(username, '');
         
         const roomCode = uuidv4().slice(0, 6).toUpperCase();
         socket.join(roomCode);
         
         // Initialize the game
-        initializeGame(roomCode, socket.id, username);
+        initializeGame(roomCode, socket.id, username, isPublic);
         
         // Store custom prompt if provided
         if (customPrompt) {
@@ -57,7 +58,35 @@ io.on('connection', (socket) => {
             game.customPrompt = sanitizeMessage(customPrompt, './!?-,\'');
         }
         
-        socket.emit('roomCreated', { roomCode, username, inviteLink: `http://localhost:${port}/?room=${roomCode}` });
+        // If room is public, add it to the public rooms list
+        if (isPublic) {
+            updatePublicRoomsList(roomCode);
+        }
+        
+        socket.emit('roomCreated', { roomCode, username, inviteLink: `http://localhost:${port}/?room=${roomCode}`, isPublic });
+    });
+    
+    // Set up rate limiting for public rooms requests
+    const publicRoomsRefreshRates = new Map(); // socketId -> last refresh time
+    const REFRESH_COOLDOWN = 3000; // 3 seconds minimum between refreshes
+    
+    // Add endpoint to get public rooms
+    socket.on('getPublicRooms', () => {
+        const now = Date.now();
+        const lastRefresh = publicRoomsRefreshRates.get(socket.id) || 0;
+        
+        // Rate limit refreshes
+        if (now - lastRefresh < REFRESH_COOLDOWN) {
+            console.log(`Rate limiting public rooms request from ${socket.id}`);
+            // Don't respond to too-frequent requests
+            return;
+        }
+        
+        // Update last refresh time
+        publicRoomsRefreshRates.set(socket.id, now);
+        
+        const roomsList = Array.from(publicRooms.values());
+        socket.emit('publicRoomsList', roomsList);
     });
     
     socket.on('testGenerateImage', async ({ drawingData, guess, promptTemplate }) => {
@@ -169,6 +198,11 @@ io.on('connection', (socket) => {
             }
             
             updateGameState(roomCode);
+            
+            // Update public rooms list if this is a public room
+            if (game.isPublic) {
+                updatePublicRoomsList(roomCode);
+            }
         } else {
             socket.emit('error', 'Room not found');
         }
@@ -225,18 +259,30 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
+        // Clean up player from games
         games.forEach((game, roomCode) => {
             if (game.players.has(socket.id)) {
                 game.players.delete(socket.id);
                 if (game.players.size === 0) {
                     games.delete(roomCode);
                     drawings.delete(roomCode);
+                    publicRooms.delete(roomCode);
                 } else if (game.currentDrawer === socket.id) {
                     nextTurn(roomCode);
                 }
+                
+                // Update game state for remaining players
                 updateGameState(roomCode);
+                
+                // Update public rooms list if this is a public room
+                if (game.isPublic) {
+                    updatePublicRoomsList(roomCode);
+                }
             }
         });
+        
+        // Clean up rate limiting data
+        publicRoomsRefreshRates.delete(socket.id);
     });
 });
 
@@ -266,7 +312,7 @@ function getRandomColor() {
     return colors[Math.floor(Math.random() * colors.length)];
 }
 
-function initializeGame(roomCode, socketId, username) {
+function initializeGame(roomCode, socketId, username, isPublic = false) {
     games.set(roomCode, {
         players: new Map([[socketId, { username, score: 0, color: getRandomColor() }]]),
         currentDrawer: socketId,
@@ -281,9 +327,17 @@ function initializeGame(roomCode, socketId, username) {
         votes: new Map(),
         generatedImages: [],
         voting: false,
+        isPublic: isPublic,
+        createdAt: Date.now(),
         // Default AI generation prompt template
         customPrompt: "Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. It must look like the provided sketch! Do not modify important shapes/silhouettes in the sketch, just fill them in. Make it look like the provided guess: {guess}"
     });
+    
+    // If it's a public room, add it to the public rooms list
+    if (isPublic) {
+        updatePublicRoomsList(roomCode);
+    }
+    
     startTurn(roomCode);
 }
 
@@ -586,6 +640,42 @@ function updateGameState(roomCode) {
     });
 }
 
+// Function to update the public rooms list
+function updatePublicRoomsList(roomCode) {
+    const game = games.get(roomCode);
+    if (!game || !game.isPublic) return;
+    
+    // Create a summary of the room for the public listing
+    const roomInfo = {
+        roomCode,
+        playerCount: game.players.size,
+        round: game.round,
+        createdAt: game.createdAt,
+        hostName: Array.from(game.players.values())[0].username  // First player is the host
+    };
+    
+    publicRooms.set(roomCode, roomInfo);
+}
+
+// Function to clean up old public rooms
+function cleanupPublicRooms() {
+    const now = Date.now();
+    const twoHoursInMs = 2 * 60 * 60 * 1000;
+    
+    // Remove rooms older than 2 hours or rooms that no longer exist
+    publicRooms.forEach((roomInfo, roomCode) => {
+        const game = games.get(roomCode);
+        if (!game || (now - roomInfo.createdAt > twoHoursInMs)) {
+            publicRooms.delete(roomCode);
+        } else {
+            // Update the player count
+            roomInfo.playerCount = game.players.size;
+            roomInfo.round = game.round;
+            publicRooms.set(roomCode, roomInfo);
+        }
+    });
+}
+
 // Function to clean up old generated images
 function cleanupOldImages() {
     const dir = path.join(__dirname, 'public', 'generated');
@@ -629,5 +719,7 @@ function cleanupOldImages() {
 
 // Run the cleanup every hour
 setInterval(cleanupOldImages, 60 * 60 * 1000);
+// Run the public rooms cleanup every minute
+setInterval(cleanupPublicRooms, 60 * 1000);
 
 server.listen(port, () => console.log(`Server running on port ${port}`));

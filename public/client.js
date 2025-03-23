@@ -66,15 +66,31 @@ window.addEventListener('load', () => {
     // Initialize the prompt editor functionality
     initPromptEditor();
     
+    // Initialize public rooms list
+    loadPublicRooms();
+    
+    // Set up auto-refresh for the rooms list
+    roomsRefreshInterval = setInterval(() => loadPublicRooms(), REFRESH_INTERVAL);
+    
+    // Set up manual refresh button for public rooms
+    document.getElementById('refreshRooms').addEventListener('click', () => {
+        // Reset the refresh timer when manually refreshed
+        if (roomsRefreshInterval) {
+            clearInterval(roomsRefreshInterval);
+            roomsRefreshInterval = setInterval(() => loadPublicRooms(), REFRESH_INTERVAL);
+        }
+        loadPublicRooms();
+    });
+    
     // Add keystroke handlers for the lobby form
     usernameInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-            // If room code is filled, join room, otherwise create room
+            // If room code is filled, join room, otherwise create private room
             const roomCode = document.getElementById('roomCode').value.trim();
             if (roomCode) {
                 joinRoom();
             } else {
-                createRoom();
+                createRoom(false); // Create private room on Enter key
             }
         }
     });
@@ -180,7 +196,7 @@ function copyToClipboard(text) {
         .catch(err => console.error('Failed to copy: ', err));
 }
 
-function createRoom() {
+function createRoom(isPublic = false) {
     let username = document.getElementById('username').value.trim();
     let isAutoName = false;
     
@@ -195,8 +211,9 @@ function createRoom() {
         if (!isAutoName) {
             localStorage.setItem('imageinary_username', username);
         }
+        
         // Include custom prompt when creating room
-        socket.emit('createRoom', username, customPrompt);
+        socket.emit('createRoom', username, customPrompt, isPublic);
     }
 }
 
@@ -394,10 +411,101 @@ function clearCanvas() {
     }
 }
 
+// Variables for rate limiting refreshes
+let lastRoomsRefresh = 0;
+const REFRESH_COOLDOWN = 3000; // 3 seconds minimum between refreshes
+const REFRESH_INTERVAL = 15000; // 15 seconds auto-refresh interval
+
+// Load and display public rooms with rate limiting
+function loadPublicRooms() {
+    const now = Date.now();
+    
+    // Check if we're trying to refresh too quickly
+    if (now - lastRoomsRefresh < REFRESH_COOLDOWN) {
+        console.log("Refresh rate limited, skipping");
+        return;
+    }
+    
+    lastRoomsRefresh = now;
+    socket.emit('getPublicRooms');
+    
+    // Show loading indicator
+    const publicRoomsList = document.getElementById('publicRoomsList');
+    publicRoomsList.innerHTML = '<div class="loading-rooms">Loading rooms...</div>';
+}
+
+// Set up auto-refresh for the public rooms
+let roomsRefreshInterval = null;
+
+// Handle received public rooms list
+socket.on('publicRoomsList', (rooms) => {
+    const publicRoomsList = document.getElementById('publicRoomsList');
+    publicRoomsList.innerHTML = '';
+    
+    if (rooms.length === 0) {
+        publicRoomsList.innerHTML = '<div class="no-rooms">No public rooms available</div>';
+        return;
+    }
+    
+    // Sort rooms: newer rooms first
+    rooms.sort((a, b) => b.createdAt - a.createdAt);
+    
+    // Create a room item for each public room
+    rooms.forEach(room => {
+        const roomItem = document.createElement('div');
+        roomItem.className = 'room-item';
+        roomItem.dataset.roomCode = room.roomCode;
+        
+        const roomInfo = document.createElement('div');
+        roomInfo.className = 'room-info';
+        
+        const hostName = document.createElement('div');
+        hostName.className = 'room-host';
+        hostName.textContent = room.hostName;
+        
+        const details = document.createElement('div');
+        details.className = 'room-details';
+        details.textContent = `${room.playerCount} player${room.playerCount !== 1 ? 's' : ''} • Round ${room.round}`;
+        
+        const joinBtn = document.createElement('button');
+        joinBtn.className = 'room-join';
+        joinBtn.textContent = 'Join';
+        joinBtn.onclick = (e) => {
+            e.stopPropagation();
+            joinPublicRoom(room.roomCode);
+        };
+        
+        roomInfo.appendChild(hostName);
+        roomInfo.appendChild(details);
+        
+        roomItem.appendChild(roomInfo);
+        roomItem.appendChild(joinBtn);
+        
+        // Make the whole room item clickable
+        roomItem.onclick = () => joinPublicRoom(room.roomCode);
+        
+        publicRoomsList.appendChild(roomItem);
+    });
+});
+
+// Join a public room
+function joinPublicRoom(roomCode) {
+    // Set the room code input
+    document.getElementById('roomCode').value = roomCode;
+    // Join the room
+    joinRoom();
+}
+
 socket.on('roomCreated', ({ roomCode, username, inviteLink }) => startGame(roomCode, username, inviteLink));
 socket.on('roomJoined', ({ roomCode, username }) => startGame(roomCode, username));
 
 function startGame(roomCode, username, inviteLink) {
+    // Clear the rooms refresh interval when game starts
+    if (roomsRefreshInterval) {
+        clearInterval(roomsRefreshInterval);
+        roomsRefreshInterval = null;
+    }
+    
     document.getElementById('lobby').style.display = 'none';
     document.getElementById('game').style.display = 'block';
     document.getElementById('currentRoom').textContent = roomCode;

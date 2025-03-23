@@ -111,7 +111,7 @@ io.on('connection', (socket) => {
             if (now - lastTime < 1000) return;
             lastMessageTimes.set(socket.id, now);
 
-            message = sanitizeMessage(message, '.?!');
+            message = sanitizeMessage(message, '.?!/');
 
             const timestamp = new Date().toLocaleTimeString();
             const username = game.players.get(socket.id).username;

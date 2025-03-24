@@ -952,4 +952,4 @@ setInterval(cleanupOldImages, 60 * 60 * 1000);
 // Run the rooms cleanup every 15 seconds
 setInterval(cleanupRooms, 15 * 1000);
 
-server.listen(port, () => console.log(`Server running on port ${port}`));
+server.listen(port, '0.0.0.0', () => console.log(`Server running on port ${port}`));

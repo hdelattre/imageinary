@@ -1,4 +1,7 @@
 const socket = io();
+
+// Setup connection monitoring
+let disconnectTimeout;
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 let drawing = false;
@@ -508,8 +511,13 @@ function joinPublicRoom(roomCode) {
     joinRoom();
 }
 
-socket.on('roomCreated', ({ roomCode, username, inviteLink }) => startGame(roomCode, username, inviteLink));
-socket.on('roomJoined', ({ roomCode, username }) => startGame(roomCode, username));
+socket.on('roomCreated', ({ roomCode, username, inviteLink }) => {
+    startGame(roomCode, username, inviteLink);
+});
+
+socket.on('roomJoined', ({ roomCode, username }) => {
+    startGame(roomCode, username);
+});
 
 function startGame(roomCode, username, inviteLink) {
     // Clear the rooms refresh interval when game starts
@@ -933,6 +941,52 @@ socket.on('roomPrompt', (data) => {
         showPromptModal(data.prompt);
     }
 });
+
+// Handle socket connection events
+socket.on('connect', () => {
+    console.log('Connected to server');
+    clearTimeout(disconnectTimeout);
+});
+
+socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+
+    // If we're in a game and got disconnected, show a message and return to lobby
+    addSystemMessage('⚠️ Connection lost. Returning to lobby in 5 seconds...');
+    
+    // Set a timeout to return to the main menu if reconnection doesn't happen quickly
+    disconnectTimeout = setTimeout(() => {
+        if (document.getElementById('game').style.display !== 'none') {
+            returnToLobby();
+        }
+    }, 5000); // 5 seconds timeout before returning to lobby
+});
+
+// Function to return to lobby
+function returnToLobby() {
+    // Reset game state
+    document.getElementById('game').style.display = 'none';
+    document.getElementById('lobby').style.display = 'block';
+    
+    // Clear the game elements
+    document.getElementById('chat').innerHTML = '';
+    document.getElementById('players').innerHTML = '';
+    document.getElementById('currentRoom').textContent = '';
+    document.getElementById('drawer').textContent = '';
+    document.getElementById('drawer').dataset.id = '';
+    document.getElementById('round').textContent = '';
+    document.getElementById('timer').textContent = '';
+    
+    // Reset drawing state
+    clearDrawCanvas();
+    
+    // Restart the public rooms refresh interval
+    loadPublicRooms();
+    if (roomsRefreshInterval) {
+        clearInterval(roomsRefreshInterval);
+    }
+    roomsRefreshInterval = setInterval(() => loadPublicRooms(), REFRESH_INTERVAL);
+}
 
 // Flag to track if we're editing a room prompt or just the default prompt
 let isEditingRoomPrompt = false;

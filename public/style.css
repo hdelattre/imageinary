@@ -996,6 +996,37 @@ button {
     background-color: #27ae60;
 }
 
+/* AI Player styles */
+.host-only {
+    display: none; /* Hidden by default, shown only to host */
+}
+
+.ai-player {
+    position: relative;
+}
+
+.ai-player::after {
+    content: "🤖";
+    position: absolute;
+    right: 2px;
+    top: 0;
+    font-size: 0.8em;
+}
+
+.remove-ai-btn {
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+    position: absolute;
+    right: 8px;
+    color: #e74c3c;
+    font-size: 0.8em;
+}
+
+.ai-player:hover .remove-ai-btn {
+    opacity: 1;
+}
+
 /* Prompt view modal styles */
 .prompt-view {
     max-width: 600px;

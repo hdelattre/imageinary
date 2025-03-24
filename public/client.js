@@ -82,6 +82,12 @@ window.addEventListener('load', () => {
         loadPublicRooms();
     });
     
+    // Add event listener for the AI player button
+    const addAIBtn = document.getElementById('addAIBtn');
+    if (addAIBtn) {
+        addAIBtn.addEventListener('click', addAIPlayer);
+    }
+    
     // Add keystroke handlers for the lobby form
     usernameInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
@@ -558,9 +564,27 @@ function updatePlayersList(players) {
     const playersDiv = document.getElementById('players');
     playersDiv.innerHTML = ''; // Clear existing content
     
+    // Check if the current user is host
+    const isHost = players.length > 0 && players[0].id === socket.id;
+    
     // Add each player with proper DOM methods to prevent XSS
     players.forEach(p => {
         const playerDiv = document.createElement('div');
+        
+        // Add AI player class if this is an AI
+        if (p.isAI) {
+            playerDiv.className = 'ai-player';
+            
+            // Add remove button if user is host
+            if (isHost) {
+                const removeBtn = document.createElement('span');
+                removeBtn.className = 'remove-ai-btn';
+                removeBtn.innerHTML = '✖';
+                removeBtn.title = 'Remove AI player';
+                removeBtn.onclick = () => removeAIPlayer(p.id);
+                playerDiv.appendChild(removeBtn);
+            }
+        }
         
         const nameSpan = document.createElement('span');
         nameSpan.style.color = p.color || '#000';
@@ -571,11 +595,31 @@ function updatePlayersList(players) {
         
         playersDiv.appendChild(playerDiv);
     });
+    
+    // Add "Add AI" button for host (only visible in CSS if user is host)
+    if (isHost) {
+        document.getElementById('addAIBtn').style.display = 'block';
+    } else {
+        document.getElementById('addAIBtn').style.display = 'none';
+    }
+}
+
+// Function to add an AI player
+function addAIPlayer() {
+    const roomCode = document.getElementById('currentRoom').textContent;
+    socket.emit('addAIPlayer', roomCode);
+}
+
+// Function to remove an AI player
+function removeAIPlayer(aiPlayerId) {
+    const roomCode = document.getElementById('currentRoom').textContent;
+    socket.emit('removeAIPlayer', { roomCode, aiPlayerId });
 }
 
 socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     document.getElementById('round').textContent = round;
-    document.getElementById('drawer').textContent = players.find(p => p.id === currentDrawer).username;
+    const drawerPlayer = players.find(p => p.id === currentDrawer);
+    document.getElementById('drawer').textContent = drawerPlayer ? drawerPlayer.username : "Unknown";
     document.getElementById('drawer').dataset.id = currentDrawer;
 
     if (currentPlayers.length > 0) {

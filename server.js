@@ -263,7 +263,7 @@ io.on('connection', (socket) => {
         
         socket.emit('roomCreated', { roomCode, username, inviteLink: `http://localhost:${port}/?room=${roomCode}`, isPublic });
 
-        startTurn(roomCode);
+        startGame(roomCode);
     });
     
     // Set up rate limiting
@@ -697,6 +697,10 @@ function createAIPlayer(roomCode) {
     return aiPlayerId;
 }
 
+function startGame(roomCode) {
+    startTurn(roomCode);
+}
+
 function startTurn(roomCode) {
     const game = games.get(roomCode);
     if (!game) return;
@@ -767,6 +771,16 @@ function startTurn(roomCode) {
     
     // Reset AI player guessing timers
     resetAIPlayerGuessTimers(roomCode);
+}
+
+function nextTurn(roomCode) {
+    const game = games.get(roomCode);
+    if (!game) return;
+    
+    clearTimeout(game.timer);
+    clearTimeout(game.votingTimer);
+    game.round++;
+    startTurn(roomCode);
 }
 
 // Handle drawing updates for AI players
@@ -992,8 +1006,7 @@ function endRound(roomCode) {
     } else {
         console.log(`Room ${roomCode} has insufficient players or guesses to generate images`);
         // Skip to next turn if we can't generate images
-        game.round++;
-        startTurn(roomCode);
+        nextTurn(roomCode);
     }
 }
 
@@ -1022,10 +1035,8 @@ async function generateNewImage(roomCode) {
         // No guesses or insufficient players, skip to next turn
         if (guessesWithPlayers.length === 0 || game.players.size < 2) {
             console.log(`Room ${roomCode}: No valid guesses or not enough players. Skipping image generation.`);
-            // Move to next turn instead of throwing error
-            game.round++;
-            startTurn(roomCode);
-            return; // Exit the function
+            nextTurn(roomCode);
+            return;
         }
 
         // Generate images for each guess
@@ -1087,12 +1098,10 @@ async function generateNewImage(roomCode) {
             }
         }
 
-        // If we couldn't generate any images, handle it gracefully
+        // If we couldn't generate any images, start next turn
         if (generatedImages.length === 0) {
             console.log(`Room ${roomCode}: No images were successfully generated, skipping to next turn`);
-            // Move to next turn instead of throwing an error
-            game.round++;
-            startTurn(roomCode);
+            nextTurn(roomCode);
             return;
         }
 
@@ -1107,8 +1116,7 @@ async function generateNewImage(roomCode) {
         io.to(roomCode).emit('error', 'Failed to generate images');
         
         // Skip to next turn
-        game.round++;
-        startTurn(roomCode);
+        nextTurn(roomCode);
     }
 }
 
@@ -1206,19 +1214,8 @@ function tallyVotes(roomCode) {
     });
     
     setTimeout(() => {
-        game.round++;
-        startTurn(roomCode);
+        nextTurn(roomCode);
     }, 5000);
-}
-
-function nextTurn(roomCode) {
-    const game = games.get(roomCode);
-    if (!game) return;
-    
-    clearTimeout(game.timer);
-    clearTimeout(game.votingTimer);
-    game.round++;
-    startTurn(roomCode);
 }
 
 function updateGameState(roomCode) {

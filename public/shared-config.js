@@ -5,7 +5,7 @@ const PROMPT_CONFIG = {
     GUESS_PROMPT: "You are playing Pictionary. Look at this drawing and make a fun creative guess of what it represents. Your guess will be remixed with the drawing by an AI, so you should avoid obvious answers and guess something whacky and interesting that will result in something fun and surprising. Your guess should be at most a short phrase. If the drawing seems incomplete or unclear, make your best guess anyway.",
     MAX_PROMPT_LENGTH: 1024, // Maximum length of prompt in characters
     VALID_CHARS: '{}./!?-,\'',
-    MAX_AI_PLAYERS: 3, // Maximum number of AI players allowed per room
+    MAX_AI_PLAYERS: 4, // Maximum number of AI players allowed per room
     // Function to valid/clean up prompt
     validatePrompt: (prompt) => {
         // Check if prompt is empty

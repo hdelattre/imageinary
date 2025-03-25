@@ -108,7 +108,7 @@ const prompts = [
 ];
 
 // AI player configuration
-const AI_PLAYER_PREFIX = "🤖 AI-";
+const AI_PLAYER_PREFIX = "🤖 ";
 const AI_PLAYER_COLORS = [
     "#3498db", // Blue
     "#2ecc71", // Green

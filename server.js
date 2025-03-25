@@ -117,8 +117,9 @@ const AI_PLAYER_COLORS = [
     "#1abc9c", // Teal
 ];
 const AI_NAMES = [
-    "Pixel", "Doodle", "Sketch", "Canvas", "Artie", "Botaso",
-    "RoboArt", "Circuit", "Binary", "Quantum", "Vector", "Neural"
+    "Rusty", "Velgorath", "Spritz", "Junebug", "Flarp", "Tango", "Zorn", "Pippin",
+    "Klyster", "Moxie", "Brontz", "Slyvie", "Cinder", "Raxus", "Twitch", "Larkspur",
+    "Gizmo", "Vex", "Saffron", "Drifty", "Korvax", "Blitz"
 ];
 
 // AI player configuration constants

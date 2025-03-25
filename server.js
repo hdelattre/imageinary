@@ -221,7 +221,7 @@ io.on('connection', (socket) => {
         const roomCode = uuidv4().slice(0, 6).toUpperCase();
         socket.join(roomCode);
         
-        console.log(`Room created: ${roomCode} by ${username}, isPublic: ${isPublic}`);
+        console.log(`Room ${roomCode}| Created by ${username}, isPublic: ${isPublic}`);
         
         // Initialize the game
         initializeGame(roomCode, socket.id, username, isPublic);
@@ -260,7 +260,7 @@ io.on('connection', (socket) => {
         
         // Rate limit refreshes
         if (now - lastRefresh < REFRESH_COOLDOWN) {
-            console.log(`Rate limiting public rooms request from ${socket.id}`);
+            console.log(`Rate limit: Blocking public rooms request from ${socket.id}`);
             // Don't respond to too-frequent requests
             return;
         }
@@ -301,14 +301,14 @@ io.on('connection', (socket) => {
             if (validation.valid) {
                 // Update the custom prompt with the validated prompt
                 game.customPrompt = sanitizeMessage(validation.prompt, PROMPT_CONFIG.VALID_CHARS);
-                console.log(`Room ${roomCode} prompt updated by host`);
+                console.log(`Room ${roomCode}| Prompt updated by host: ${game.customPrompt}`);
                 
                 // If this is a public room, update the public room list
                 if (game.isPublic) {
                     updatePublicRoomsList(roomCode);
                 }
             } else {
-                console.log(`Invalid prompt submitted by host in room ${roomCode}: ${validation.error}`);
+                console.log(`Room ${roomCode}| Invalid prompt submitted by host - ${validation.error}`);
             }
         }
     });
@@ -505,9 +505,9 @@ io.on('connection', (socket) => {
                     // For public rooms in immediate cleanup mode, remove immediately
                     if (!game.isPublic) {
                         // For private rooms, allow cleanup to handle it
-                        console.log(`Room ${roomCode} is now empty. Will expire in 60 seconds if no one joins.`);
+                        console.log(`Room ${roomCode}| Now empty. Will expire in 60 seconds if no one joins.`);
                     } else {
-                        console.log(`Public room ${roomCode} is now empty. Will expire in 30 seconds if no one joins.`);
+                        console.log(`Room ${roomCode}| Now empty (public). Will expire in 30 seconds if no one joins.`);
                     }
                     
                     // Clean up all AI players if the room is empty
@@ -523,7 +523,7 @@ io.on('connection', (socket) => {
                 
                 // If only AI players remain, clear them all
                 } else if (humanPlayerCount === 0 && game.aiPlayers.size > 0) {
-                    console.log(`Room ${roomCode} only contains AI players now. Removing all AI players.`);
+                    console.log(`Room ${roomCode}| Only contains AI players now. Removing all AI players.`);
 
                     // Remove all AI players
                     game.aiPlayers.forEach(aiPlayerId => {
@@ -542,12 +542,12 @@ io.on('connection', (socket) => {
                     
                     // Set the empty room timestamp
                     game.emptyRoomTimestamp = Date.now();
-                    console.log(`Room ${roomCode} is now empty after AI players removal. Will expire soon.`);
+                    console.log(`Room ${roomCode}| Now empty after AI players removal. Will expire soon.`);
                 
                 } else if (game.players.size === 1 && game.isPublic) {
                     // Public room with only one player remaining
                     game.singlePlayerTimestamp = Date.now();
-                    console.log(`Public room ${roomCode} now has only 1 player. Will expire in 15 minutes if it stays that way.`);
+                    console.log(`Room ${roomCode}| Now has only 1 player (public). Will expire in 15 minutes if it stays that way.`);
                 } else {
                     // Reset single player timestamp if we have more players
                     game.singlePlayerTimestamp = null;
@@ -562,7 +562,7 @@ io.on('connection', (socket) => {
                 if (wasHost && game.players.size > 0) {
                     // The new first player is now the host
                     const newHostName = Array.from(game.players.keys())[0];
-                    console.log(`Host left room ${roomCode}, new host: ${newHostName}`);
+                    console.log(`Room ${roomCode}| Host left, new host: ${newHostName}`);
                     sendSystemMessage(roomCode, `The host has left! ${newHostName} is now the host.`);
                 }
                 
@@ -706,7 +706,7 @@ function createAIPlayer(roomCode) {
         drawingTimer: null
     });
     
-    console.log(`AI player ${uniqueAiName} (${aiPlayerId}) added to room ${roomCode}`);
+    console.log(`Room ${roomCode}| AI player ${uniqueAiName} (${aiPlayerId}) added`);
     
     return aiPlayerId;
 }
@@ -754,7 +754,7 @@ function startTurn(roomCode) {
     
     // Check if there are any players in the game
     if (game.players.size === 0) {
-        console.log(`No players in room ${roomCode}, can't start turn`);
+        console.log(`Room ${roomCode}| No players, can't start turn`);
         return;
     }
     
@@ -772,12 +772,10 @@ function startTurn(roomCode) {
     
     // Verify that the drawer exists in the player list
     if (!game.players.has(game.currentDrawer)) {
-        console.log(`Current drawer ${game.currentDrawer} not found in players list, selecting new drawer`);
         // Select a new drawer if the current one doesn't exist
         if (players.length > 0) {
             game.currentDrawer = players[0];
         } else {
-            console.log(`No players available in room ${roomCode}`);
             return;
         }
     }
@@ -930,7 +928,6 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
         // Only make a guess if there's actual drawing data
         if (!drawingData) return;
         
-        console.log(`AI player ${aiPlayerId} is making a guess in room ${roomCode}`);
         
         const prompt = "You are playing Pictionary. Look at this drawing and make a one-word guess of what it represents. Only respond with a single word, no explanation or punctuation. If the drawing seems incomplete or unclear, make your best guess anyway.";
         
@@ -984,7 +981,6 @@ function scheduleAIDrawing(roomCode, aiPlayerId, prompt) {
     
     if (!game || !aiData) return;
     
-    console.log(`AI player ${aiPlayerId} will draw "${prompt}" in room ${roomCode}`);
     
     // Schedule the drawing after a short delay
     aiData.drawingTimer = setTimeout(() => {
@@ -1000,7 +996,6 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
     if (!game || !aiData || game.currentDrawer !== aiPlayerId) return;
     
     try {
-        console.log(`AI player ${aiPlayerId} is creating a drawing for "${prompt}" in room ${roomCode}`);
         
         const doodlePrompt = `Create a simple black and white Pictionary-style drawing of a "${prompt}". Make it look hand-drawn, simple, and easily recognizable as a ${prompt}. The drawing should be stylized like a human would draw it when playing Pictionary - simple lines, no shading, minimal details.`;
         
@@ -1020,7 +1015,6 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
         // Send the drawing to all players
         io.to(roomCode).emit('drawingUpdate', drawingData);
         
-        console.log(`AI player ${aiPlayerId} successfully created a drawing for "${prompt}"`);
         
     } catch (error) {
         console.error(`Error creating AI drawing: ${error.message}`);
@@ -1045,7 +1039,6 @@ function endRound(roomCode) {
     if (game.players.size >= 2 && game.lastMessages.size > 0) {
         generateNewImage(roomCode);
     } else {
-        console.log(`Room ${roomCode} has insufficient players or guesses to generate images`);
         // Skip to next turn if we can't generate images
         nextTurn(roomCode);
     }
@@ -1075,7 +1068,6 @@ async function generateNewImage(roomCode) {
 
         // No guesses or insufficient players, skip to next turn
         if (guessesWithPlayers.length === 0 || game.players.size < 2) {
-            console.log(`Room ${roomCode}: No valid guesses or not enough players. Skipping image generation.`);
             nextTurn(roomCode);
             return;
         }
@@ -1091,7 +1083,6 @@ async function generateNewImage(roomCode) {
             const generationPrompt = promptTemplate.replace('{guess}', guessData.guess);
             
             try {
-                console.log(`Generating image for guess "${guessData.guess}" by ${guessData.playerName} in room ${roomCode}`);
                 
                 const result = await requestGeminiResponse(generationPrompt, drawingData);
                 const imageData = result.imageData;
@@ -1120,9 +1111,6 @@ async function generateNewImage(roomCode) {
                 // Ensure the directory exists
                 fs.mkdirSync(path.dirname(safePath), { recursive: true });
                 fs.writeFileSync(safePath, buffer);
-
-                // Verify the output file
-                console.log(`Generated image saved: ${filePath}`);
                 
                 generatedImages.push({
                     playerId: guessData.playerId,
@@ -1141,7 +1129,6 @@ async function generateNewImage(roomCode) {
 
         // If we couldn't generate any images, start next turn
         if (generatedImages.length === 0) {
-            console.log(`Room ${roomCode}: No images were successfully generated, skipping to next turn`);
             nextTurn(roomCode);
             return;
         }
@@ -1264,7 +1251,7 @@ function updateGameState(roomCode) {
     
     // Ensure we have players
     if (game.players.size === 0) {
-        console.log(`No players in room ${roomCode} to update game state`);
+        console.log(`Room ${roomCode}| No players to update game state`);
         return;
     }
 
@@ -1278,7 +1265,7 @@ function updateGameState(roomCode) {
         // If drawer is invalid, select first player
         const firstPlayer = Array.from(game.players.keys())[0];
         game.currentDrawer = firstPlayer;
-        console.log(`Invalid drawer, selecting new drawer: ${firstPlayer}`);
+        console.log(`Room ${roomCode}| Invalid drawer, selecting new drawer: ${firstPlayer}`);
     }
 
     io.to(roomCode).emit('gameState', {
@@ -1328,7 +1315,7 @@ function cleanupRooms() {
             const expiryTime = game.isPublic ? publicRoomEmptyExpiryMs : privateRoomExpiryMs;
             
             if (emptyDuration > expiryTime) {
-                console.log(`Room ${roomCode} has been empty for ${Math.floor(emptyDuration/1000)} seconds. Removing.`);
+                console.log(`Room ${roomCode}| Has been empty for ${Math.floor(emptyDuration/1000)} seconds. Removing.`);
                 
                 // Clean up AI player resources
                 if (game.aiPlayers && game.aiPlayers.size > 0) {
@@ -1354,7 +1341,7 @@ function cleanupRooms() {
             const singlePlayerDuration = now - game.singlePlayerTimestamp;
             
             if (singlePlayerDuration > publicRoomSinglePlayerExpiryMs) {
-                console.log(`Public room ${roomCode} has had only 1 player for ${Math.floor(singlePlayerDuration/60000)} minutes. Removing.`);
+                console.log(`Room ${roomCode}| Has had only 1 player for ${Math.floor(singlePlayerDuration/60000)} minutes (public). Removing.`);
                 
                 // Notify the last player before removing the room
                 const lastPlayerId = Array.from(game.players.keys())[0];
@@ -1413,7 +1400,7 @@ function cleanupRooms() {
             
             // Remove AI player data
             aiPlayers.delete(aiPlayerId);
-            console.log(`Cleaned up orphaned AI player data for ${aiPlayerId}`);
+            console.log(`Room ${aiData.roomCode}| Cleaned up orphaned AI player data for ${aiPlayerId}`);
         }
     });
 }
@@ -1480,7 +1467,7 @@ setInterval(() => {
         if (game.isPublic) publicRoomsCount++;
     });
     
-    console.log(`Stats: ${totalUsers} users, ${totalAIPlayers} AI players, ${activeRooms} active rooms (${publicRoomsCount} public)`);
+    console.log(`Server stats: ${totalUsers} users, ${totalAIPlayers} AI players, ${activeRooms} active rooms (${publicRoomsCount} public)`);
 }, 5 * 60 * 1000);
 
 server.listen(port, '0.0.0.0', () => console.log(`Server running on port ${port}`));

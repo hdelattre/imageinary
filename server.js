@@ -542,8 +542,6 @@ io.on('connection', (socket) => {
                     
                     // Set the empty room timestamp
                     game.emptyRoomTimestamp = Date.now();
-                    console.log(`Room ${roomCode}| Now empty after AI players removal. Will expire soon.`);
-                
                 } else if (game.players.size === 1 && game.isPublic) {
                     // Public room with only one player remaining
                     game.singlePlayerTimestamp = Date.now();
@@ -1378,30 +1376,6 @@ function cleanupRooms() {
             roomInfo.round = game.round;
             roomInfo.hostName = hostName; // Make sure host name is updated if host changes
             publicRooms.set(roomCode, roomInfo);
-        }
-    });
-    
-    // Clean up any orphaned public room entries (where the game no longer exists)
-    publicRooms.forEach((roomInfo, roomCode) => {
-        if (!games.has(roomCode)) {
-            publicRooms.delete(roomCode);
-        }
-    });
-    
-    // Clean up any orphaned AI player data
-    aiPlayers.forEach((aiData, aiPlayerId) => {
-        const roomCode = aiData.roomCode;
-        const game = games.get(roomCode);
-        
-        // If the room doesn't exist anymore or the AI player is not in the room
-        if (!game || !game.aiPlayers.has(aiPlayerId)) {
-            // Clean up timers
-            if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
-            if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-            
-            // Remove AI player data
-            aiPlayers.delete(aiPlayerId);
-            console.log(`Room ${aiData.roomCode}| Cleaned up orphaned AI player data for ${aiPlayerId}`);
         }
     });
 }

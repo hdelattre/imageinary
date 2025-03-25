@@ -720,6 +720,17 @@ button:active {
         padding: 10px;
     }
     
+    /* Adjust positioning of header buttons on mobile */
+    #viewPromptBtn {
+        top: 10px !important;
+        right: 10px !important;
+    }
+    
+    #addAIBtn {
+        top: 10px !important;
+        left: 10px !important;
+    }
+    
     #canvas {
         width: 100%;
         height: auto;
@@ -999,6 +1010,29 @@ button {
 /* AI Player styles */
 .host-only {
     display: none; /* Hidden by default, shown only to host */
+}
+
+/* Styling for top-left AI add button */
+#addAIBtn {
+    background-color: #2ecc71;
+    border: 1px solid #27ae60;
+    box-shadow: 0 0 5px rgba(46, 204, 113, 0.3);
+    width: 32px;
+    height: 32px;
+}
+
+#addAIBtn:hover {
+    background-color: #27ae60;
+    box-shadow: 0 0 8px rgba(46, 204, 113, 0.5);
+}
+
+#addAIBtn .icon {
+    font-size: 18px;
+}
+
+/* When host-only is shown (for the host) */
+.host-only.show {
+    display: flex !important;
 }
 
 .ai-player {

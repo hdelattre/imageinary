@@ -56,6 +56,10 @@
         <button type="button" id="viewPromptBtn" class="icon-btn" title="View AI Prompt" onclick="viewRoomPrompt()" style="position: absolute; top: 20px; right: 20px; z-index: 2000;">
             <span class="icon">🔮</span>
         </button>
+        <!-- AI player button positioned at top left, only visible for host -->
+        <button type="button" id="addAIBtn" class="icon-btn host-only" onclick="addAIPlayer()" title="Add AI Player" style="position: absolute; top: 20px; left: 20px; z-index: 2000;">
+            <span class="icon">🤖</span>
+        </button>
         <div id="prompt" style="display: none;">Draw: <span id="promptText"></span></div>
         <div class="drawing-container">
             <!-- Drawing View -->
@@ -91,9 +95,6 @@
             <span class="game-info-item">🔄 <span id="round"></span></span>
             <span class="game-info-item">✏️ <span id="drawer" data-id=""></span></span>
             <span class="game-info-item" id="timer"></span>
-            <button id="addAIBtn" class="icon-btn host-only" title="Add AI Player" style="display: none;">
-                <span class="icon">🤖</span>
-            </button>
         </div>
         <div class="chat-container">
             <div id="players"></div>

@@ -82,11 +82,7 @@ window.addEventListener('load', () => {
         loadPublicRooms();
     });
     
-    // Add event listener for the AI player button
-    const addAIBtn = document.getElementById('addAIBtn');
-    if (addAIBtn) {
-        addAIBtn.addEventListener('click', addAIPlayer);
-    }
+    // AI player functionality is handled by the onclick attribute in HTML
     
     // Add keystroke handlers for the lobby form
     usernameInput.addEventListener('keypress', (e) => {
@@ -402,7 +398,14 @@ function undo() {
         const img = new Image();
         img.onload = () => {
             clearDrawCanvas();
-            ctx.drawImage(img, 0, 0);
+            // Scale and center the image to fit the canvas while maintaining aspect ratio
+            const scale = Math.min(
+                canvas.width / img.width,
+                canvas.height / img.height
+            );
+            const x = (canvas.width - img.width * scale) / 2;
+            const y = (canvas.height - img.height * scale) / 2;
+            ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
             sendDrawingUpdate();
         };
         img.src = lastState;
@@ -596,11 +599,14 @@ function updatePlayersList(players) {
         playersDiv.appendChild(playerDiv);
     });
     
-    // Add "Add AI" button for host (only visible in CSS if user is host)
-    if (isHost) {
-        document.getElementById('addAIBtn').style.display = 'block';
-    } else {
-        document.getElementById('addAIBtn').style.display = 'none';
+    // Show/hide the host-only elements using CSS classes
+    const hostOnlyElements = document.getElementsByClassName('host-only');
+    for (const element of hostOnlyElements) {
+        if (isHost) {
+            element.classList.add('show');
+        } else {
+            element.classList.remove('show');
+        }
     }
 }
 
@@ -789,7 +795,14 @@ socket.on('drawingUpdate', (drawingData) => {
     const img = new Image();
     img.onload = () => {
         clearDrawCanvas();
-        ctx.drawImage(img, 0, 0);
+        // Scale and center the image to fit the canvas while maintaining aspect ratio
+        const scale = Math.min(
+            canvas.width / img.width,
+            canvas.height / img.height
+        );
+        const x = (canvas.width - img.width * scale) / 2;
+        const y = (canvas.height - img.height * scale) / 2;
+        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
     };
     img.src = drawingData;
 });

@@ -923,11 +923,8 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
     try {
         // Only make a guess if there's actual drawing data
         if (!drawingData) return;
-        
-        
-        const prompt = "You are playing Pictionary. Look at this drawing and make a one-word guess of what it represents. Only respond with a single word, no explanation or punctuation. If the drawing seems incomplete or unclear, make your best guess anyway.";
-        
-        const result = await requestGeminiResponse(prompt, drawingData);
+
+        const result = await requestGeminiResponse(PROMPT_CONFIG.GUESS_PROMPT, drawingData);
         
         let guess = result.text.trim().split(/\s+/)[0]; // Take only the first word
         

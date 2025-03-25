@@ -561,8 +561,9 @@ io.on('connection', (socket) => {
                 // If host left, reassign host status to the first remaining player
                 if (wasHost && game.players.size > 0) {
                     // The new first player is now the host
-                    const newHostName = Array.from(game.players.keys())[0];
-                    console.log(`Room ${roomCode}| Host left, new host: ${newHostName}`);
+                    const newHostId = Array.from(game.players.keys())[0];
+                    const newHostName = Array.from(game.players.values())[0].username;
+                    console.log(`Room ${roomCode}| Host left, new host: ${newHostId}`);
                     sendSystemMessage(roomCode, `The host has left! ${newHostName} is now the host.`);
                 }
                 

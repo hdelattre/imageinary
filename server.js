@@ -172,16 +172,6 @@ io.on('connection', (socket) => {
             // Update game state for all players
             updateGameState(roomCode);
             
-            // Send a system message about the AI player joining
-            const aiPlayer = game.players.get(aiPlayerId);
-            const timestamp = new Date().toLocaleTimeString();
-            io.to(roomCode).emit('newMessage', {
-                username: 'System',
-                message: `${aiPlayer.username} has joined the game`,
-                timestamp,
-                color: '#888888'
-            });
-            
             // Update public rooms list if this is a public room
             if (game.isPublic) {
                 updatePublicRoomsList(roomCode);
@@ -537,16 +527,7 @@ io.on('connection', (socket) => {
                 // If only AI players remain, clear them all
                 } else if (humanPlayerCount === 0 && game.aiPlayers.size > 0) {
                     console.log(`Room ${roomCode} only contains AI players now. Removing all AI players.`);
-                    
-                    // Send a system message
-                    const timestamp = new Date().toLocaleTimeString();
-                    io.to(roomCode).emit('newMessage', {
-                        username: 'System',
-                        message: 'All AI players have been removed because there are no human players left',
-                        timestamp,
-                        color: '#888888'
-                    });
-                    
+
                     // Remove all AI players
                     game.aiPlayers.forEach(aiPlayerId => {
                         // Clean up AI player data
@@ -617,6 +598,14 @@ function sanitizeMessage(message, allowedPunctuation = '', maxLength = null) {
     const escapedPunctuation = allowedPunctuation.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
     const regex = new RegExp(`[^a-zA-Z0-9\\s${escapedPunctuation}]`, 'g');
     return message.replace(regex, '');
+}
+
+function sendSystemMessage(roomCode, message) {
+    const timestamp = new Date().toLocaleTimeString();
+    io.to(roomCode).emit('systemMessage', {
+        message: message,
+        timestamp
+    });
 }
 
 function getRandomColor() {
@@ -749,16 +738,7 @@ function removeAIPlayer(roomCode, aiPlayerId) {
         // Otherwise just update the game state
         updateGameState(roomCode);
     }
-    
-    // Send a system message about the AI player leaving
-    const timestamp = new Date().toLocaleTimeString();
-    io.to(roomCode).emit('newMessage', {
-        username: 'System',
-        message: `${aiPlayerName} has left the game`,
-        timestamp,
-        color: '#888888'
-    });
-    
+
     // Update public rooms list if this is a public room
     if (game.isPublic) {
         updatePublicRoomsList(roomCode);
@@ -1051,14 +1031,8 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
         drawings.set(roomCode, blankCanvasData);
         io.to(roomCode).emit('drawingUpdate', blankCanvasData);
         
-        // Send a system message explaining the issue
-        const timestamp = new Date().toLocaleTimeString();
-        io.to(roomCode).emit('newMessage', {
-            username: 'System',
-            message: `AI player had trouble drawing "${prompt}". Please try again.`,
-            timestamp,
-            color: '#888888'
-        });
+        // Let clients know about the AI drawing failure
+        sendSystemMessage(roomCode, `AI player had trouble drawing "${prompt}"`)
     }
 }
 

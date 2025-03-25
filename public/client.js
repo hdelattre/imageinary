@@ -543,12 +543,7 @@ function startGame(roomCode, username, inviteLink) {
     document.getElementById('currentRoom').textContent = roomCode;
     
     // Add welcome message for the player (only visible to them)
-    const chatDiv = document.getElementById('chat');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'system-message welcome-message';
-    messageDiv.textContent = `Welcome to room ${roomCode}! You joined as ${username}`;
-    chatDiv.appendChild(messageDiv);
-    chatDiv.scrollTop = chatDiv.scrollHeight;
+    addSystemMessage(`Welcome to room ${roomCode}! You joined as ${username}`, 'system-message welcome-message');
     
     // Initialize timer
     document.getElementById('timer').textContent = getTimeString('--');
@@ -696,6 +691,7 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
 
         // Add join messages
         joinedPlayers.forEach(player => {
+            // For colored usernames we need to use DOM manipulation
             const chatDiv = document.getElementById('chat');
             const messageDiv = document.createElement('div');
             messageDiv.className = 'system-message join-message';
@@ -716,6 +712,7 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
         leftPlayers.forEach(player => {
             const wasDrawer = player.id === currentDrawer;
             
+            // For colored usernames we need to use DOM manipulation
             const chatDiv = document.getElementById('chat');
             const messageDiv = document.createElement('div');
             messageDiv.className = 'system-message leave-message';
@@ -769,11 +766,11 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     }
 });
 
-// Function to add system messages to chat
-function addSystemMessage(message) {
+// Function to display system messages in chat
+function addSystemMessage(message, className = 'system-message') {
     const chatDiv = document.getElementById('chat');
     const messageDiv = document.createElement('div');
-    messageDiv.className = 'system-message';
+    messageDiv.className = className;
     messageDiv.textContent = message;
     chatDiv.appendChild(messageDiv);
     chatDiv.scrollTop = chatDiv.scrollHeight;
@@ -879,6 +876,10 @@ socket.on('newMessage', ({ username, message, timestamp, color }) => {
     chatDiv.appendChild(messageDiv);
     chatDiv.scrollTop = chatDiv.scrollHeight; // Auto-scroll to bottom
 });
+
+socket.on('systemMessage', ({ message, timestamp }) => {{
+    addSystemMessage(message);
+}});
 
 socket.on('startVoting', (generatedImages) => {
     // Hide drawing view and show voting view

@@ -618,7 +618,8 @@ function removeLastAIPlayer() {
 }
 
 // Function to update the players list
-function updatePlayersList(players) {
+function updatePlayersList() {
+    const players = currentPlayers;
     const playersDiv = document.getElementById('players');
     playersDiv.innerHTML = ''; // Clear existing content
     
@@ -738,7 +739,7 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     // Update current players
     currentPlayers = [...players];
 
-    updatePlayersList(players);
+    updatePlayersList();
 
     // Update prompt button styling when host changes
     const isHost = players.length > 0 && players[0].id === socket.id;
@@ -951,7 +952,14 @@ socket.on('votingResults', ({ message, scores }) => {
     document.getElementById('voteResults').textContent = message;
     document.getElementById('voteResults').style.display = 'block';
     
-    updatePlayersList(scores);
+    scores.forEach(playerScore => {
+        const playerIndex = currentPlayers.findIndex(p => p.id === playerScore.id);
+        if (playerIndex !== -1) {
+            currentPlayers[playerIndex].score = playerScore.score;
+        }
+    });
+
+    updatePlayersList();
     
     // Add system message about voting results
     addSystemMessage(message);

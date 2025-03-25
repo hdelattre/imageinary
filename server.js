@@ -1246,9 +1246,8 @@ function tallyVotes(roomCode) {
     io.to(roomCode).emit('votingResults', {
         message: resultMessage,
         scores: Array.from(game.players.entries()).map(([id, data]) => ({ 
-            username: data.username, 
-            score: data.score,
-            color: data.color 
+            id,
+            score: data.score
         })),
     });
     

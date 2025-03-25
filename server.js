@@ -663,10 +663,31 @@ function deleteRoom(roomCode) {
 }
 
 function addPlayer(game, playerId, username) {
+    // Add the player to the game
     game.players.set(playerId, {
         username: username,
         score: 0,
         color: getRandomColor()
+    });
+    
+    reorderPlayers(game);
+}
+
+// Reorder players so human players come before AI players
+function reorderPlayers(game) {
+    if (game.players.size <= 1) return; // Nothing to reorder
+    
+    // Get all players and separate them into humans and AIs
+    const allPlayers = Array.from(game.players.entries());
+    const humanPlayers = allPlayers.filter(([id, data]) => !id.startsWith('ai-'));
+    const aiPlayers = allPlayers.filter(([id, data]) => id.startsWith('ai-'));
+    
+    // Clear the current players Map
+    game.players.clear();
+    
+    // Re-add human players first, then AI players
+    [...humanPlayers, ...aiPlayers].forEach(([id, data]) => {
+        game.players.set(id, data);
     });
 }
 

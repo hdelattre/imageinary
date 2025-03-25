@@ -275,42 +275,40 @@ io.on('connection', (socket) => {
     // Endpoint to get a room's prompt
     socket.on('getRoomPrompt', (roomCode) => {
         const game = games.get(roomCode);
-        if (game) {
-            // Check if this socket is the host (first player)
-            const players = Array.from(game.players.keys());
-            const isHost = players.length > 0 && players[0] === socket.id;
-            
-            // Return the prompt and host status in one response
-            socket.emit('roomPrompt', {
-                prompt: game.customPrompt,
-                isHost: isHost
-            });
-        }
+        if (!game) return;
+        // Check if this socket is the host (first player)
+        const players = Array.from(game.players.keys());
+        const isHost = players.length > 0 && players[0] === socket.id;
+        
+        // Return the prompt and host status in one response
+        socket.emit('roomPrompt', {
+            prompt: game.customPrompt,
+            isHost: isHost
+        });
     });
     
     // Endpoint to update a room's prompt
     socket.on('updateRoomPrompt', ({ roomCode, prompt }) => {
         const game = games.get(roomCode);
-        if (game) {
-            // Verify this is the host
-            const players = Array.from(game.players.keys());
-            const isHost = players.length > 0 && players[0] === socket.id;
-            
-            if (isHost) {
-                // Validate the prompt
-                const validation = PROMPT_CONFIG.validatePrompt(prompt);
-                if (validation.valid) {
-                    // Update the custom prompt with the validated prompt
-                    game.customPrompt = sanitizeMessage(validation.prompt, PROMPT_CONFIG.VALID_CHARS);
-                    console.log(`Room ${roomCode} prompt updated by host`);
-                    
-                    // If this is a public room, update the public room list
-                    if (game.isPublic) {
-                        updatePublicRoomsList(roomCode);
-                    }
-                } else {
-                    console.log(`Invalid prompt submitted by host in room ${roomCode}: ${validation.error}`);
+        if (!game) return;
+        // Verify this is the host
+        const players = Array.from(game.players.keys());
+        const isHost = players.length > 0 && players[0] === socket.id;
+        
+        if (isHost) {
+            // Validate the prompt
+            const validation = PROMPT_CONFIG.validatePrompt(prompt);
+            if (validation.valid) {
+                // Update the custom prompt with the validated prompt
+                game.customPrompt = sanitizeMessage(validation.prompt, PROMPT_CONFIG.VALID_CHARS);
+                console.log(`Room ${roomCode} prompt updated by host`);
+                
+                // If this is a public room, update the public room list
+                if (game.isPublic) {
+                    updatePublicRoomsList(roomCode);
                 }
+            } else {
+                console.log(`Invalid prompt submitted by host in room ${roomCode}: ${validation.error}`);
             }
         }
     });
@@ -446,30 +444,29 @@ io.on('connection', (socket) => {
 
     socket.on('sendMessage', ({ roomCode, message }) => {
         const game = games.get(roomCode);
-        if (game) {
-            // Allow drawer to send messages if in voting phase, otherwise continue blocking
-            if (socket.id === game.currentDrawer && !game.voting) {
-                return; // Drawer can't chat during drawing phase
-            }
-            
-            const now = Date.now();
-            const lastTime = lastMessageTimes.get(socket.id) || 0;
-            
-            // Spam control: 1 message/sec
-            if (now - lastTime < 1000) return;
-            lastMessageTimes.set(socket.id, now);
-
-            message = sanitizeMessage(message, '.?!/');
-
-            const timestamp = new Date().toLocaleTimeString();
-            const username = game.players.get(socket.id).username;
-            const color = game.players.get(socket.id).color || '#000000'; // Default color if not set
-            
-            game.chatHistory.push({ playerId: socket.id, username, message, timestamp, color });
-            game.lastMessages.set(socket.id, message);
-            
-            io.to(roomCode).emit('newMessage', { username, message, timestamp, color });
+        if (!game) return;
+        // Allow drawer to send messages if in voting phase, otherwise continue blocking
+        if (socket.id === game.currentDrawer && !game.voting) {
+            return; // Drawer can't chat during drawing phase
         }
+        
+        const now = Date.now();
+        const lastTime = lastMessageTimes.get(socket.id) || 0;
+        
+        // Spam control: 1 message/sec
+        if (now - lastTime < 1000) return;
+        lastMessageTimes.set(socket.id, now);
+
+        message = sanitizeMessage(message, '.?!/');
+
+        const timestamp = new Date().toLocaleTimeString();
+        const username = game.players.get(socket.id).username;
+        const color = game.players.get(socket.id).color || '#000000'; // Default color if not set
+        
+        game.chatHistory.push({ playerId: socket.id, username, message, timestamp, color });
+        game.lastMessages.set(socket.id, message);
+        
+        io.to(roomCode).emit('newMessage', { username, message, timestamp, color });
     });
 
     socket.on('vote', ({ roomCode, imagePlayerId }) => {

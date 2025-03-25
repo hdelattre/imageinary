@@ -57,12 +57,9 @@
             <span class="icon">🔮</span>
         </button>
         <!-- AI player buttons positioned at top left, only visible for host -->
-        <div class="ai-buttons host-only" style="position: absolute; top: 20px; left: 20px; z-index: 2000;">
+        <div class="ai-buttons" style="position: absolute; top: 20px; left: 20px; z-index: 2000;">
             <button type="button" id="addAIBtn" class="icon-btn" onclick="addAIPlayer()" title="Add AI Player">
                 <span class="icon">🤖</span>
-            </button>
-            <button type="button" id="removeAIBtn" class="icon-btn" onclick="removeLastAIPlayer()" title="Remove AI Player" style="display: none;">
-                <span class="icon">🤖❌</span>
             </button>
         </div>
         <div id="prompt" style="display: none;">Draw: <span id="promptText"></span></div>

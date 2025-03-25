@@ -561,38 +561,6 @@ function startGame(roomCode, username, inviteLink) {
 // Current AI player count (accessible to all functions)
 let aiPlayerCount = 0;
 
-// Update AI buttons visibility
-function updateAIButtons(isHost) {
-    if (!isHost) return;
-    
-    const addAIBtn = document.getElementById('addAIBtn');
-    const removeAIBtn = document.getElementById('removeAIBtn');
-    const aiButtons = document.querySelector('.ai-buttons');
-    
-    // First make sure the AI buttons container is shown for host
-    if (aiButtons) {
-        aiButtons.classList.add('show');
-    }
-    
-    // Only show the Add AI button if we're below the max limit
-    if (addAIBtn) {
-        if (aiPlayerCount >= PROMPT_CONFIG.MAX_AI_PLAYERS) {
-            addAIBtn.style.display = 'none';
-        } else {
-            addAIBtn.style.display = 'inline-block';
-        }
-    }
-    
-    // Only show the Remove AI button if there are AI players to remove
-    if (removeAIBtn) {
-        if (aiPlayerCount > 0) {
-            removeAIBtn.style.display = 'inline-block';
-        } else {
-            removeAIBtn.style.display = 'none';
-        }
-    }
-}
-
 // Function to add an AI player 
 function addAIPlayer() {
     if (aiPlayerCount >= PROMPT_CONFIG.MAX_AI_PLAYERS) return;
@@ -633,6 +601,13 @@ function updatePlayersList() {
     players.forEach(p => {
         const playerDiv = document.createElement('div');
         
+        const nameSpan = document.createElement('span');
+        nameSpan.style.color = p.color || '#000';
+        nameSpan.textContent = p.username;
+        
+        playerDiv.appendChild(nameSpan);
+        playerDiv.appendChild(document.createTextNode(': ' + p.score));
+        
         // Add AI player class if this is an AI
         if (p.isAI) {
             playerDiv.className = 'ai-player';
@@ -649,28 +624,20 @@ function updatePlayersList() {
             }
         }
         
-        const nameSpan = document.createElement('span');
-        nameSpan.style.color = p.color || '#000';
-        nameSpan.textContent = p.username;
-        
-        playerDiv.appendChild(nameSpan);
-        playerDiv.appendChild(document.createTextNode(': ' + p.score));
-        
         playersDiv.appendChild(playerDiv);
     });
     
-    // Show/hide the host-only elements using CSS classes
-    const hostOnlyElements = document.getElementsByClassName('host-only');
-    for (const element of hostOnlyElements) {
-        if (isHost) {
-            element.classList.add('show');
+    // Update AI add AI based on current count
+    const addAIBtn = document.getElementById('addAIBtn');
+
+    // Only show the Add AI button if we're below the max limit
+    if (addAIBtn) {
+        if (!isHost || aiPlayerCount >= PROMPT_CONFIG.MAX_AI_PLAYERS) {
+            addAIBtn.style.display = 'none';
         } else {
-            element.classList.remove('show');
+            addAIBtn.style.display = 'inline-block';
         }
     }
-    
-    // Update AI buttons based on current count
-    updateAIButtons(isHost);
 }
 
 socket.on('gameState', ({ players, currentDrawer, round, voting }) => {

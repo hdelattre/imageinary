@@ -1007,11 +1007,6 @@ button {
     background-color: #27ae60;
 }
 
-/* AI Player styles */
-.host-only {
-    display: none; /* Hidden by default, shown only to host */
-}
-
 /* Styling for top-left AI add button */
 #addAIBtn {
     background-color: #2ecc71;
@@ -1030,24 +1025,6 @@ button {
     font-size: 18px;
 }
 
-/* Style for remove AI button */
-#removeAIBtn {
-    background-color: #e74c3c;
-    border: 1px solid #c0392b;
-    box-shadow: 0 0 5px rgba(231, 76, 60, 0.3);
-    width: 32px;
-    height: 32px;
-}
-
-#removeAIBtn:hover {
-    background-color: #c0392b;
-    box-shadow: 0 0 8px rgba(231, 76, 60, 0.5);
-}
-
-#removeAIBtn .icon {
-    font-size: 14px;
-}
-
 /* Container for AI buttons */
 .ai-buttons {
     display: flex;
@@ -1060,47 +1037,44 @@ button {
 }
 
 /* Ensure button display properties don't get overridden */
-.ai-buttons.show #addAIBtn,
-.ai-buttons.show #removeAIBtn {
+.ai-buttons.show #addAIBtn {
     display: inline-block;
 }
 
 .ai-player {
     position: relative;
-    padding-right: 25px; /* Make space for the AI icon and remove button */
-}
-
-.ai-player::after {
-    content: "🤖";
-    position: absolute;
-    right: 4px;
-    top: 0;
-    font-size: 0.8em;
+    display: flex;
+    align-items: center;
 }
 
 .remove-ai-btn {
     cursor: pointer;
-    opacity: 0;
+    opacity: 0; /* Still hidden by default, shown on hover */
     transition: all 0.2s;
-    position: absolute;
-    right: 18px;
-    top: 0;
-    color: #e74c3c;
-    font-size: 0.9em;
-    background-color: rgba(231, 76, 60, 0.1);
-    border-radius: 50%;
-    width: 14px;
-    height: 14px;
-    line-height: 14px;
-    text-align: center;
-    display: flex;
+    position: relative; /* Changed from absolute to relative for inline flow */
+    display: inline-flex; /* Flex for centering content */
     align-items: center;
     justify-content: center;
+    color: #e74c3c; /* Red color */
+    font-size: 1em; /* Slightly larger than before (was 0.9em) */
+    background-color: rgba(231, 76, 60, 0.1); /* Light red background */
+    border-radius: 50%; /* Circular shape */
+    width: 18px; /* Increased from 14px */
+    height: 18px; /* Increased from 14px */
+    line-height: 18px; /* Matches height for vertical centering */
+    text-align: center;
+    margin-left: 6px; /* Space between name and button */
+    vertical-align: middle; /* Aligns with text baseline */
 }
 
+/* Show button when hovering over the player div */
 .ai-player:hover .remove-ai-btn {
     opacity: 1;
-    background-color: rgba(231, 76, 60, 0.2);
+}
+]
+.remove-ai-btn:hover {
+    background-color: rgba(231, 76, 60, 0.3); /* Darker red on hover */
+    color: #fff; /* White text on hover for contrast */
 }
 
 /* Prompt view modal styles */

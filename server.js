@@ -7,7 +7,6 @@ const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 
 // Import shared configuration and validation
-const CONFIG = require('./public/shared-config');
 const PROMPT_CONFIG = require('./public/shared-config');
 
 const app = express();
@@ -137,101 +136,93 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+function isSocketRoomHost(game, socketId) {
+    const players = Array.from(game.players.keys());
+    return players.length > 0 && players[0] === socketId;
+}
+
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
-
+    
     // Add an AI player to the room
     socket.on('addAIPlayer', (roomCode) => {
         const game = games.get(roomCode);
         
-        // Check if the room exists and the requester is the host (first player)
-        if (game) {
-            const players = Array.from(game.players.keys());
-            const isHost = players.length > 0 && players[0] === socket.id;
-            
-            if (isHost) {
-                // Create a new AI player
-                const aiPlayerId = createAIPlayer(roomCode);
-                
-                if (aiPlayerId) {
-                    // Update game state for all players
-                    updateGameState(roomCode);
-                    
-                    // Send a system message about the AI player joining
-                    const aiPlayer = game.players.get(aiPlayerId);
-                    const timestamp = new Date().toLocaleTimeString();
-                    io.to(roomCode).emit('newMessage', {
-                        username: 'System',
-                        message: `${aiPlayer.username} has joined the game`,
-                        timestamp,
-                        color: '#888888'
-                    });
-                    
-                    // Update public rooms list if this is a public room
-                    if (game.isPublic) {
-                        updatePublicRoomsList(roomCode);
-                    }
-                }
-            } else {
-                socket.emit('error', 'Only the host can add AI players');
-            }
-        } else {
+        // Check if the room exists and the requester is the host
+        if (!game) {
             socket.emit('error', 'Room not found');
+            return;
+        }
+        
+        if (!isSocketRoomHost(game, socket.id)) {
+            socket.emit('error', 'Only the host can add AI players');
+            return;
+        }
+        
+        // Check AI player limit using shared configuration
+        if (game.aiPlayers.size >= PROMPT_CONFIG.MAX_AI_PLAYERS) {
+            socket.emit('error', `Maximum of ${PROMPT_CONFIG.MAX_AI_PLAYERS} AI players allowed per room`);
+            return;
+        }
+        
+        // Create a new AI player
+        const aiPlayerId = createAIPlayer(roomCode);
+        
+        if (aiPlayerId) {
+            // Update game state for all players
+            updateGameState(roomCode);
+            
+            // Send a system message about the AI player joining
+            const aiPlayer = game.players.get(aiPlayerId);
+            const timestamp = new Date().toLocaleTimeString();
+            io.to(roomCode).emit('newMessage', {
+                username: 'System',
+                message: `${aiPlayer.username} has joined the game`,
+                timestamp,
+                color: '#888888'
+            });
+            
+            // Update public rooms list if this is a public room
+            if (game.isPublic) {
+                updatePublicRoomsList(roomCode);
+            }
         }
     });
     
-    // Remove an AI player from the room
+    // Remove the last AI player added to the room
+    socket.on('removeLastAIPlayer', (roomCode) => {
+        const game = games.get(roomCode);
+        if (!game) {
+            socket.emit('error', 'Room not found');
+            return;
+        }
+        
+        if (!isSocketRoomHost(game, socket.id) || game.aiPlayers.size === 0) {
+            socket.emit('error', 'Only the host can remove AI players');
+            return;
+        }
+        
+        // Get the last AI player ID in the room
+        const aiPlayersList = Array.from(game.aiPlayers);
+        const lastAiPlayerId = aiPlayersList[aiPlayersList.length - 1];
+
+        removeAIPlayer(roomCode, lastAiPlayerId);
+    });
+    
+    // Remove an AI player from the room by ID
     socket.on('removeAIPlayer', ({ roomCode, aiPlayerId }) => {
         const game = games.get(roomCode);
-        
-        // Check if the room exists and the requester is the host (first player)
-        if (game) {
-            const players = Array.from(game.players.keys());
-            const isHost = players.length > 0 && players[0] === socket.id;
-            
-            if (isHost && game.aiPlayers.has(aiPlayerId)) {
-                // Get AI player name before removing
-                const aiPlayerName = game.players.get(aiPlayerId).username;
-                
-                // Remove the AI player
-                game.players.delete(aiPlayerId);
-                game.aiPlayers.delete(aiPlayerId);
-                
-                // Clean up any timers for this AI player
-                const aiData = aiPlayers.get(aiPlayerId);
-                if (aiData) {
-                    if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
-                    if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-                    aiPlayers.delete(aiPlayerId);
-                }
-                
-                // If the current drawer was this AI, start a new turn
-                if (game.currentDrawer === aiPlayerId) {
-                    nextTurn(roomCode);
-                } else {
-                    // Otherwise just update the game state
-                    updateGameState(roomCode);
-                }
-                
-                // Send a system message about the AI player leaving
-                const timestamp = new Date().toLocaleTimeString();
-                io.to(roomCode).emit('newMessage', {
-                    username: 'System',
-                    message: `${aiPlayerName} has left the game`,
-                    timestamp,
-                    color: '#888888'
-                });
-                
-                // Update public rooms list if this is a public room
-                if (game.isPublic) {
-                    updatePublicRoomsList(roomCode);
-                }
-            } else {
-                socket.emit('error', 'Only the host can remove AI players');
-            }
-        } else {
+        if (!game) {
             socket.emit('error', 'Room not found');
+            return;
         }
+        
+        if (!isSocketRoomHost(game, socket.id) || !game.aiPlayers.has(aiPlayerId)) {
+            socket.emit('error', 'Only the host can remove AI players');
+            return;
+        }
+
+        removeAIPlayer(roomCode, aiPlayerId);
     });
 
     socket.on('createRoom', (username, customPrompt, isPublic = false) => {
@@ -516,6 +507,9 @@ io.on('connection', (socket) => {
                 // Now remove the player
                 game.players.delete(socket.id);
                 
+                // Get count of real human players (non-AI)
+                const humanPlayerCount = game.players.size - game.aiPlayers.size;
+                
                 // Check player count after removal
                 if (game.players.size === 0) {
                     // Set the empty room timestamp instead of immediately deleting
@@ -539,7 +533,39 @@ io.on('connection', (socket) => {
                         }
                     });
                     game.aiPlayers.clear();
+                
+                // If only AI players remain, clear them all
+                } else if (humanPlayerCount === 0 && game.aiPlayers.size > 0) {
+                    console.log(`Room ${roomCode} only contains AI players now. Removing all AI players.`);
                     
+                    // Send a system message
+                    const timestamp = new Date().toLocaleTimeString();
+                    io.to(roomCode).emit('newMessage', {
+                        username: 'System',
+                        message: 'All AI players have been removed because there are no human players left',
+                        timestamp,
+                        color: '#888888'
+                    });
+                    
+                    // Remove all AI players
+                    game.aiPlayers.forEach(aiPlayerId => {
+                        // Clean up AI player data
+                        const aiData = aiPlayers.get(aiPlayerId);
+                        if (aiData) {
+                            if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
+                            if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
+                            aiPlayers.delete(aiPlayerId);
+                        }
+                        
+                        // Remove from players list
+                        game.players.delete(aiPlayerId);
+                    });
+                    game.aiPlayers.clear();
+                    
+                    // Set the empty room timestamp
+                    game.emptyRoomTimestamp = Date.now();
+                    console.log(`Room ${roomCode} is now empty after AI players removal. Will expire soon.`);
+                
                 } else if (game.players.size === 1 && game.isPublic) {
                     // Public room with only one player remaining
                     game.singlePlayerTimestamp = Date.now();
@@ -695,6 +721,48 @@ function createAIPlayer(roomCode) {
     console.log(`AI player ${uniqueAiName} (${aiPlayerId}) added to room ${roomCode}`);
     
     return aiPlayerId;
+}
+
+function removeAIPlayer(roomCode, aiPlayerId) {
+    const game = games.get(roomCode);
+    if (!game) return null;
+
+    // Get AI player name before removing
+    const aiPlayerName = game.players.get(aiPlayerId).username;
+        
+    // Remove the AI player
+    game.players.delete(aiPlayerId);
+    game.aiPlayers.delete(aiPlayerId);
+    
+    // Clean up timers and other resources
+    const aiData = aiPlayers.get(aiPlayerId);
+    if (aiData) {
+        if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
+        if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
+        aiPlayers.delete(aiPlayerId);
+    }
+    
+    // If the current drawer was this AI, start a new turn
+    if (game.currentDrawer === aiPlayerId) {
+        nextTurn(roomCode);
+    } else {
+        // Otherwise just update the game state
+        updateGameState(roomCode);
+    }
+    
+    // Send a system message about the AI player leaving
+    const timestamp = new Date().toLocaleTimeString();
+    io.to(roomCode).emit('newMessage', {
+        username: 'System',
+        message: `${aiPlayerName} has left the game`,
+        timestamp,
+        color: '#888888'
+    });
+    
+    // Update public rooms list if this is a public room
+    if (game.isPublic) {
+        updatePublicRoomsList(roomCode);
+    }
 }
 
 function startGame(roomCode) {

@@ -726,7 +726,7 @@ button:active {
         right: 10px !important;
     }
     
-    #addAIBtn {
+    .ai-buttons {
         top: 10px !important;
         left: 10px !important;
     }
@@ -1030,19 +1030,50 @@ button {
     font-size: 18px;
 }
 
+/* Style for remove AI button */
+#removeAIBtn {
+    background-color: #e74c3c;
+    border: 1px solid #c0392b;
+    box-shadow: 0 0 5px rgba(231, 76, 60, 0.3);
+    width: 32px;
+    height: 32px;
+}
+
+#removeAIBtn:hover {
+    background-color: #c0392b;
+    box-shadow: 0 0 8px rgba(231, 76, 60, 0.5);
+}
+
+#removeAIBtn .icon {
+    font-size: 14px;
+}
+
+/* Container for AI buttons */
+.ai-buttons {
+    display: flex;
+    gap: 10px;
+}
+
 /* When host-only is shown (for the host) */
 .host-only.show {
     display: flex !important;
 }
 
+/* Ensure button display properties don't get overridden */
+.ai-buttons.show #addAIBtn,
+.ai-buttons.show #removeAIBtn {
+    display: inline-block;
+}
+
 .ai-player {
     position: relative;
+    padding-right: 25px; /* Make space for the AI icon and remove button */
 }
 
 .ai-player::after {
     content: "🤖";
     position: absolute;
-    right: 2px;
+    right: 4px;
     top: 0;
     font-size: 0.8em;
 }
@@ -1050,15 +1081,26 @@ button {
 .remove-ai-btn {
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.2s;
+    transition: all 0.2s;
     position: absolute;
-    right: 8px;
+    right: 18px;
+    top: 0;
     color: #e74c3c;
-    font-size: 0.8em;
+    font-size: 0.9em;
+    background-color: rgba(231, 76, 60, 0.1);
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    line-height: 14px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .ai-player:hover .remove-ai-btn {
     opacity: 1;
+    background-color: rgba(231, 76, 60, 0.2);
 }
 
 /* Prompt view modal styles */

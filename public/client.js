@@ -562,6 +562,66 @@ function startGame(roomCode, username, inviteLink) {
     document.body.style.overflow = 'auto';
 }
 
+// AI Player Management Functions 
+// Current AI player count (accessible to all functions)
+let aiPlayerCount = 0;
+
+// Update AI buttons visibility
+function updateAIButtons(isHost) {
+    if (!isHost) return;
+    
+    const addAIBtn = document.getElementById('addAIBtn');
+    const removeAIBtn = document.getElementById('removeAIBtn');
+    const aiButtons = document.querySelector('.ai-buttons');
+    
+    // First make sure the AI buttons container is shown for host
+    if (aiButtons) {
+        aiButtons.classList.add('show');
+    }
+    
+    // Only show the Add AI button if we're below the max limit
+    if (addAIBtn) {
+        if (aiPlayerCount >= PROMPT_CONFIG.MAX_AI_PLAYERS) {
+            addAIBtn.style.display = 'none';
+        } else {
+            addAIBtn.style.display = 'inline-block';
+        }
+    }
+    
+    // Only show the Remove AI button if there are AI players to remove
+    if (removeAIBtn) {
+        if (aiPlayerCount > 0) {
+            removeAIBtn.style.display = 'inline-block';
+        } else {
+            removeAIBtn.style.display = 'none';
+        }
+    }
+}
+
+// Function to add an AI player 
+function addAIPlayer() {
+    if (aiPlayerCount >= PROMPT_CONFIG.MAX_AI_PLAYERS) return;
+    
+    const roomCode = document.getElementById('currentRoom').textContent;
+    socket.emit('addAIPlayer', roomCode);
+}
+
+// Function to remove an AI player by ID
+function removeAIPlayer(aiPlayerId) {
+    if (aiPlayerCount <= 0) return;
+    
+    const roomCode = document.getElementById('currentRoom').textContent;
+    socket.emit('removeAIPlayer', { roomCode, aiPlayerId });
+}
+
+// Function to remove the last AI player added
+function removeLastAIPlayer() {
+    if (aiPlayerCount <= 0) return;
+    
+    const roomCode = document.getElementById('currentRoom').textContent;
+    socket.emit('removeLastAIPlayer', roomCode);
+}
+
 // Function to update the players list
 function updatePlayersList(players) {
     const playersDiv = document.getElementById('players');
@@ -570,6 +630,9 @@ function updatePlayersList(players) {
     // Check if the current user is host
     const isHost = players.length > 0 && players[0].id === socket.id;
     
+    // Reset AI player count
+    aiPlayerCount = 0;
+    
     // Add each player with proper DOM methods to prevent XSS
     players.forEach(p => {
         const playerDiv = document.createElement('div');
@@ -577,6 +640,7 @@ function updatePlayersList(players) {
         // Add AI player class if this is an AI
         if (p.isAI) {
             playerDiv.className = 'ai-player';
+            aiPlayerCount++;
             
             // Add remove button if user is host
             if (isHost) {
@@ -608,18 +672,9 @@ function updatePlayersList(players) {
             element.classList.remove('show');
         }
     }
-}
-
-// Function to add an AI player
-function addAIPlayer() {
-    const roomCode = document.getElementById('currentRoom').textContent;
-    socket.emit('addAIPlayer', roomCode);
-}
-
-// Function to remove an AI player
-function removeAIPlayer(aiPlayerId) {
-    const roomCode = document.getElementById('currentRoom').textContent;
-    socket.emit('removeAIPlayer', { roomCode, aiPlayerId });
+    
+    // Update AI buttons based on current count
+    updateAIButtons(isHost);
 }
 
 socket.on('gameState', ({ players, currentDrawer, round, voting }) => {

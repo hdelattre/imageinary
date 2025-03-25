@@ -947,17 +947,8 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
 
         const result = await requestGeminiResponse(PROMPT_CONFIG.GUESS_PROMPT, drawingData);
         
-        let guess = result.text.trim().split(/\s+/)[0]; // Take only the first word
-        
-        // Remove any punctuation and special characters
-        guess = guess.replace(/[^\w\s]/gi, '');
-        
-        // If the guess is empty or invalid, use a fallback
-        if (!guess) {
-            const fallbackGuesses = ["drawing", "sketch", "doodle", "picture", "art", "scribble"];
-            guess = fallbackGuesses[Math.floor(Math.random() * fallbackGuesses.length)];
-        }
-        
+        let guess = result.text.trim();
+
         // Update the last guess time
         aiData.lastGuessTime = Date.now();
         

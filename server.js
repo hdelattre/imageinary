@@ -1016,8 +1016,8 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
         
         // Send the drawing to all players
         io.to(roomCode).emit('drawingUpdate', drawingData);
-        
-        
+
+        handleAIPlayerDrawingUpdate(roomCode, drawingData);
     } catch (error) {
         console.error(`Error creating AI drawing: ${error.message}`);
         

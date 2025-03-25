@@ -123,8 +123,9 @@ const AI_NAMES = [
 ];
 
 // AI player configuration constants
-const AI_MIN_GUESS_TIME = 8000; // 8 seconds
-const AI_MAX_GUESS_TIME = 15000; // 15 seconds
+const AI_MIN_GUESS_TIME = 4000; // 4 seconds
+const AI_MAX_GUESS_TIME = 12000; // 12 seconds
+const AI_GUESS_INTERVAL = 30000; // 30 seconds between guesses
 const AI_LAST_CHANCE_TIME = 10000; // 10 seconds left
 const AI_DRAWING_TIME = 3000; // 3 seconds to create drawing
 
@@ -642,7 +643,8 @@ function createRoom(roomCode, isPublic = false) {
         singlePlayerTimestamp: null,  // Track when the room has only one player
         // Default AI generation prompt template
         customPrompt: PROMPT_CONFIG.DEFAULT_PROMPT,
-        aiPlayers: new Map()          // Store AI player metadata (ID -> data)
+        aiPlayers: new Map(),         // Store AI player metadata (ID -> data),
+        lastChanceTimer: null         // Timer to alert AI last chance to guess
     });
 }
 
@@ -657,6 +659,9 @@ function deleteRoom(roomCode) {
             if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
         });
     }
+    
+    // Clean up game timers
+    if (game.lastChanceTimer) clearTimeout(game.lastChanceTimer);
 
     games.delete(roomCode);
     drawings.delete(roomCode);
@@ -851,6 +856,10 @@ function nextTurn(roomCode) {
     
     clearTimeout(game.timer);
     clearTimeout(game.votingTimer);
+    if (game.lastChanceTimer) {
+        clearTimeout(game.lastChanceTimer);
+        game.lastChanceTimer = null;
+    }
     game.round++;
     startTurn(roomCode);
 }
@@ -871,36 +880,23 @@ function handleAIPlayerDrawingUpdate(roomCode, drawingData) {
         // Store the current drawing data for comparison
         const hasChanges = aiData.lastDrawingData !== drawingData;
         aiData.lastDrawingData = drawingData;
+
+        if (!hasChanges || aiData.guessTimer) return;
+
+        const timeNow = Date.now();
+        const timeLeft = game.timerEnd - timeNow;
+        const timeSinceLastGuess = timeNow - aiData.lastGuessTime;
         
-        // If there are changes in the drawing and the AI hasn't guessed recently,
-        // schedule a guess based on configured timing rules
-        if (hasChanges) {
-            // Clear any existing guess timer
-            if (aiData.guessTimer) {
-                clearTimeout(aiData.guessTimer);
-                aiData.guessTimer = null;
-            }
-            
-            // Calculate how much time is left in the round
-            const timeLeft = game.timerEnd - Date.now();
-            
-            // If there's not much time left (< AI_LAST_CHANCE_TIME), make a last guess
-            if (timeLeft < AI_LAST_CHANCE_TIME) {
-                // Make a guess soon (within 2-3 seconds)
-                const lastChanceDelay = 2000 + Math.random() * 1000;
-                aiData.guessTimer = setTimeout(() => {
-                    makeAIGuess(roomCode, aiPlayerId, drawingData);
-                }, lastChanceDelay);
-            } 
-            // Otherwise, make a normal timed guess
-            else if (Date.now() - aiData.lastGuessTime > AI_MAX_GUESS_TIME) {
-                // Pick a random time between MIN and MAX
-                const delay = AI_MIN_GUESS_TIME + Math.random() * (AI_MAX_GUESS_TIME - AI_MIN_GUESS_TIME);
-                
-                aiData.guessTimer = setTimeout(() => {
-                    makeAIGuess(roomCode, aiPlayerId, drawingData);
-                }, delay);
-            }
+        if (timeLeft < 5) {
+            return;
+        }
+        // Normal timed guess (not last chance)
+        else if (timeSinceLastGuess > AI_GUESS_INTERVAL) {
+            // Pick a random time between MIN and MAX
+            const delay = AI_MIN_GUESS_TIME + Math.random() * (AI_MAX_GUESS_TIME - AI_MIN_GUESS_TIME);
+            aiData.guessTimer = setTimeout(() => {
+                makeAIGuess(roomCode, aiPlayerId, drawingData);
+            }, delay);
         }
     });
 }
@@ -916,26 +912,35 @@ function resetAIPlayerGuessTimers(roomCode) {
             clearTimeout(aiData.guessTimer);
             aiData.guessTimer = null;
         }
-        
+
         // Reset the last guess time
         aiData.lastGuessTime = 0;
         aiData.lastDrawingData = null;
-        
-        // Set up last chance guess timer if this AI isn't the drawer
-        if (aiPlayerId !== game.currentDrawer) {
-            // Calculate time to set the last chance guess
-            const lastChanceTime = (roundDuration * 1000) - AI_LAST_CHANCE_TIME;
-            
-            // Set a timer for the last chance guess
-            aiData.guessTimer = setTimeout(() => {
-                // Only make a guess if there's a drawing and AI hasn't guessed recently
-                const drawingData = drawings.get(roomCode);
-                if (drawingData && Date.now() - aiData.lastGuessTime > AI_MAX_GUESS_TIME) {
-                    makeAIGuess(roomCode, aiPlayerId, drawingData);
-                }
-            }, lastChanceTime);
-        }
     });
+    
+    // Set up last chance timer for all AI players at exactly AI_LAST_CHANCE_TIME before round end
+    const lastChanceTime = (roundDuration * 1000) - AI_LAST_CHANCE_TIME;
+    game.lastChanceTimer = setTimeout(() => {
+        const drawingData = drawings.get(roomCode);
+        if (!drawingData) return;
+
+        game.aiPlayers.forEach((aiData, aiPlayerId) => {
+            if (aiPlayerId !== game.currentDrawer) {
+                // Only make a last chance guess if AI hasn't guessed this round
+                if (Date.now() - aiData.lastGuessTime > roundDuration) {
+                    // Clear any existing guess timer
+                    if (aiData.guessTimer) {
+                        clearTimeout(aiData.guessTimer);
+                    }
+                    // Make a guess soon (within 2-3 seconds)
+                    const lastChanceDelay = 1000 + Math.random() * 2000;
+                    aiData.guessTimer = setTimeout(() => {
+                        makeAIGuess(roomCode, aiPlayerId, drawingData);
+                    }, lastChanceDelay);
+                }
+            }
+        });
+    }, lastChanceTime);
 }
 
 // Make an AI player guess

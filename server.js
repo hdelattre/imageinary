@@ -22,7 +22,78 @@ const model = genAI.getGenerativeModel({
     generationConfig: {
         responseModalities: ['Text', 'Image']
     },
-  });
+});
+
+async function requestGeminiResponse(prompt, drawingData = null) {
+    try {
+        let geminiModel = model;
+
+        // Prepare the request content based on whether there's drawing data
+        let content = [];
+        if (drawingData) {
+            // Extract base64 string from data URL if needed
+            let base64Data = drawingData;
+            if (drawingData.startsWith('data:')) {
+                base64Data = drawingData.split(',')[1];
+                if (!base64Data) {
+                    throw new Error('Invalid drawing data format');
+                }
+            }
+            
+            content = [
+                prompt,
+                { inlineData: { data: base64Data, mimeType: 'image/png' } }
+            ];
+        } else {
+            content = [prompt];
+        }
+        
+        // Make the request to Gemini
+        const response = await geminiModel.generateContent(content);
+        
+        if (response.response.candidates.length === 0) {
+            throw new Error('No candidates returned by the model');
+        }
+        
+        const candidate = response.response.candidates[0];
+        
+        if (candidate.finishReason === 'RECITATION') {
+            throw new Error('Model rejected input due to content safety policy');
+        }
+        
+        if (!candidate || !candidate.content || !candidate.content.parts) {
+            throw new Error('Invalid response structure from model');
+        }
+        
+        // Default response object with both text and image data
+        const result = {
+            text: '',
+            imageData: null,
+            metadata: {
+                finishReason: candidate.finishReason,
+                safetyRatings: candidate.safetyRatings
+            }
+        };
+        
+        // Extract text content if available
+        const textParts = candidate.content.parts.filter(part => typeof part.text === 'string');
+        if (textParts.length > 0) {
+            result.text = textParts.map(part => part.text).join(' ').trim();
+        }
+        
+        // Extract image data if available
+        const imagePart = candidate.content.parts.find(part => part.inlineData);
+        if (imagePart && imagePart.inlineData && imagePart.inlineData.data) {
+            result.imageData = imagePart.inlineData.data;
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error(`Gemini API error: ${error.message}`);
+        throw error; // Re-throw the error for the caller to handle
+    }
+}
 
 // In-memory storage
 const games = new Map(); // roomCode -> gameData
@@ -281,13 +352,6 @@ io.on('connection', (socket) => {
             // Update the last generation time
             imageGenerationTimes.set(socket.id, now);
             
-            // Extract base64 string from data URL
-            const base64Data = drawingData.split(',')[1];
-            if (!base64Data) {
-                socket.emit('testImageResult', { error: 'Invalid drawing data' });
-                return;
-            }
-            
             // Validate the prompt template
             const validation = PROMPT_CONFIG.validatePrompt(promptTemplate);
             if (!validation.valid) {
@@ -299,37 +363,13 @@ io.on('connection', (socket) => {
             
             const generationPrompt = promptTemplate.replace('{guess}', guess);
             
-            // Send request to the model
-            const response = await model.generateContent([
-                generationPrompt,
-                { inlineData: { data: base64Data, mimeType: 'image/png' } },
-            ]);
+            const result = await requestGeminiResponse(generationPrompt, drawingData);
             
-            if (response.response.candidates.length === 0) {
-                socket.emit('testImageResult', { error: 'No candidates returned by the model' });
-                return;
+            const imageData = result.imageData;
+            if (!imageData) {
+                throw new Error('No image data returned from Gemini API');
             }
             
-            // Extract the generated image
-            const candidate = response.response.candidates[0];
-            
-            if (candidate.finishReason === 'RECITATION') {
-                socket.emit('testImageResult', { error: 'Model rejected input' });
-                return;
-            }
-            
-            if (!candidate || !candidate.content || !candidate.content.parts) {
-                socket.emit('testImageResult', { error: 'Invalid response from model' });
-                return;
-            }
-            
-            const imagePart = candidate.content.parts.find(part => part.inlineData);
-            if (!imagePart || !imagePart.inlineData || !imagePart.inlineData.data) {
-                socket.emit('testImageResult', { error: 'No image data found in response' });
-                return;
-            }
-            
-            const imageData = imagePart.inlineData.data;
             const buffer = Buffer.from(imageData, 'base64');
             
             // Generate a unique filename for the test image
@@ -341,9 +381,10 @@ io.on('connection', (socket) => {
             fs.mkdirSync(path.dirname(filePath), { recursive: true });
             fs.writeFileSync(filePath, buffer);
             
-            // Send back the image URL
+            // Send back the image URL and any text generated
             socket.emit('testImageResult', { 
                 imageSrc: `/generated/${filename}`,
+                text: result.text || '',
                 success: true
             });
             
@@ -828,23 +869,13 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
         // Only make a guess if there's actual drawing data
         if (!drawingData) return;
         
-        // Extract base64 string from data URL
-        const base64Data = drawingData.split(',')[1];
-        if (!base64Data) return;
-        
         console.log(`AI player ${aiPlayerId} is making a guess in room ${roomCode}`);
         
-        // Use Gemini to generate a guess
-        const geminiModel = genAI.getGenerativeModel({ model: "gemini-2.0-pro" });
         const prompt = "You are playing Pictionary. Look at this drawing and make a one-word guess of what it represents. Only respond with a single word, no explanation or punctuation. If the drawing seems incomplete or unclear, make your best guess anyway.";
         
-        const response = await geminiModel.generateContent([
-            prompt,
-            { inlineData: { data: base64Data, mimeType: 'image/png' } },
-        ]);
+        const result = await requestGeminiResponse(prompt, drawingData);
         
-        const result = response.response.text().trim();
-        let guess = result.split(/\s+/)[0]; // Take only the first word
+        let guess = result.text.trim().split(/\s+/)[0]; // Take only the first word
         
         // Remove any punctuation and special characters
         guess = guess.replace(/[^\w\s]/gi, '');
@@ -882,6 +913,32 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
         
     } catch (error) {
         console.error(`Error making AI guess: ${error.message}`);
+        // If there's an error, use a fallback guess
+        const fallbackGuesses = ["drawing", "sketch", "picture", "art", "lines", "shape"];
+        const guess = fallbackGuesses[Math.floor(Math.random() * fallbackGuesses.length)];
+        
+        // Only send a fallback guess if the AI exists
+        const aiPlayer = game.players.get(aiPlayerId);
+        if (aiPlayer) {
+            const timestamp = new Date().toLocaleTimeString();
+            io.to(roomCode).emit('newMessage', {
+                username: aiPlayer.username,
+                message: guess,
+                timestamp,
+                color: aiPlayer.color
+            });
+            
+            // Store the fallback message
+            aiData.lastGuessTime = Date.now();
+            game.lastMessages.set(aiPlayerId, guess);
+            game.chatHistory.push({
+                playerId: aiPlayerId,
+                username: aiPlayer.username,
+                message: guess,
+                timestamp,
+                color: aiPlayer.color
+            });
+        }
     }
 }
 
@@ -910,39 +967,17 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
     try {
         console.log(`AI player ${aiPlayerId} is creating a drawing for "${prompt}" in room ${roomCode}`);
         
-        // Use Gemini to generate a doodle
         const doodlePrompt = `Create a simple black and white Pictionary-style drawing of a "${prompt}". Make it look hand-drawn, simple, and easily recognizable as a ${prompt}. The drawing should be stylized like a human would draw it when playing Pictionary - simple lines, no shading, minimal details.`;
         
-        const response = await model.generateContent([doodlePrompt]);
+        const result = await requestGeminiResponse(doodlePrompt);
         
-        if (response.response.candidates.length === 0) {
-            console.error('No candidates returned by the model');
-            return;
+        // Check if we got image data
+        if (!result.imageData) {
+            throw new Error('No image data returned from Gemini API for AI drawing');
         }
-        
-        // Extract the generated image
-        const candidate = response.response.candidates[0];
-        
-        if (candidate.finishReason === 'RECITATION') {
-            console.log('Model rejected input due to RECITATION. Skipping AI drawing.');
-            return;
-        }
-        
-        if (!candidate || !candidate.content || !candidate.content.parts) {
-            console.error('No valid candidate content in response');
-            return;
-        }
-        
-        const imagePart = candidate.content.parts.find(part => part.inlineData);
-        if (!imagePart || !imagePart.inlineData || !imagePart.inlineData.data) {
-            console.error('No inline image data found in response');
-            return;
-        }
-        
-        const imageData = imagePart.inlineData.data;
         
         // Create a data URL from the base64 image data
-        const drawingData = `data:image/png;base64,${imageData}`;
+        const drawingData = `data:image/png;base64,${result.imageData}`;
         
         // Store the drawing data
         drawings.set(roomCode, drawingData);
@@ -950,8 +985,24 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
         // Send the drawing to all players
         io.to(roomCode).emit('drawingUpdate', drawingData);
         
+        console.log(`AI player ${aiPlayerId} successfully created a drawing for "${prompt}"`);
+        
     } catch (error) {
         console.error(`Error creating AI drawing: ${error.message}`);
+        
+        // If AI failed to generate, use a fallback approach - a blank canvas with a system message
+        const blankCanvasData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAmQAAAGQCAYAAAAnTe0YAAAABGdBTUEAALGPC/xhBQAAAAlwSFlzAAAOwwAADsMBx2+oZAAAABh0RVh0U29mdHdhcmUAcGFpbnQubmV0IDQuMS4xYyqcSwAAArpJREFUeF7t1cEJwDAQBEFTuftM5i7MQsA6WJiBBy78rLUuAEDlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBAOjs3A+u1hUP+gYgfAAAAABJRU5ErkJggg==';
+        drawings.set(roomCode, blankCanvasData);
+        io.to(roomCode).emit('drawingUpdate', blankCanvasData);
+        
+        // Send a system message explaining the issue
+        const timestamp = new Date().toLocaleTimeString();
+        io.to(roomCode).emit('newMessage', {
+            username: 'System',
+            message: `AI player had trouble drawing "${prompt}". Please try again.`,
+            timestamp,
+            color: '#888888'
+        });
     }
 }
 
@@ -979,12 +1030,6 @@ async function generateNewImage(roomCode) {
     try {
         if (!game || !drawingData) {
             throw new Error(`Missing game or drawing data for roomCode: ${roomCode}`);
-        }
-
-        // Extract base64 string from data URL
-        const base64Data = drawingData.split(',')[1];
-        if (!base64Data) {
-            throw new Error('Invalid drawingData format: no base64 content found');
         }
 
         // Generate an array of valid guesses with player info
@@ -1020,37 +1065,16 @@ async function generateNewImage(roomCode) {
             const generationPrompt = promptTemplate.replace('{guess}', guessData.guess);
             
             try {
-                // Send request to the model
-                const response = await model.generateContent([
-                    generationPrompt,
-                    { inlineData: { data: base64Data, mimeType: 'image/png' } },
-                ]);
-
-                if (response.response.candidates.length === 0) {
-                    console.error('No candidates returned by the model');
-                    continue;
+                console.log(`Generating image for guess "${guessData.guess}" by ${guessData.playerName} in room ${roomCode}`);
+                
+                const result = await requestGeminiResponse(generationPrompt, drawingData);
+                const imageData = result.imageData;
+                
+                // Check if we actually got image data back
+                if (!imageData) {
+                    throw new Error('No image data returned from Gemini API');
                 }
-
-                // Extract the generated image
-                const candidate = response.response.candidates[0];
-
-                if (candidate.finishReason === 'RECITATION') {
-                    console.log('Model rejected input due to RECITATION. Skipping this image.');
-                    continue;
-                }
-
-                if (!candidate || !candidate.content || !candidate.content.parts) {
-                    console.error('No valid candidate content in response');
-                    continue;
-                }
-
-                const imagePart = candidate.content.parts.find(part => part.inlineData);
-                if (!imagePart || !imagePart.inlineData || !imagePart.inlineData.data) {
-                    console.error('No inline image data found in response');
-                    continue;
-                }
-
-                const imageData = imagePart.inlineData.data;
+                
                 const buffer = Buffer.from(imageData, 'base64');
                 
                 // Sanitize filename components to prevent path traversal
@@ -1078,17 +1102,24 @@ async function generateNewImage(roomCode) {
                     playerId: guessData.playerId,
                     playerName: game.players.get(guessData.playerId).username,
                     guess: guessData.guess,
-                    imageSrc: `/generated/${filename}` // Using the sanitized filename
+                    imageSrc: `/generated/${filename}`, // Using the sanitized filename
+                    text: result.text || ''
                 });
+                
             } catch (error) {
                 console.error(`Error generating image for guess "${guessData.guess}":`, error.message);
+                // Skip this guess but continue with others
                 continue;
             }
         }
 
-        // If we couldn't generate any images, inform the users
+        // If we couldn't generate any images, handle it gracefully
         if (generatedImages.length === 0) {
-            throw new Error('No images to vote on');
+            console.log(`Room ${roomCode}: No images were successfully generated, skipping to next turn`);
+            // Move to next turn instead of throwing an error
+            game.round++;
+            startTurn(roomCode);
+            return;
         }
 
         // Store the generated images in the game state
@@ -1096,6 +1127,7 @@ async function generateNewImage(roomCode) {
         
         // Start the voting phase
         startVoting(roomCode);
+        
     } catch (error) {
         console.error('Error in image generation process:', error.message, error.stack);
         io.to(roomCode).emit('error', 'Failed to generate images');

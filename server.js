@@ -121,8 +121,7 @@ const AI_NAMES = [
     "RoboArt", "Circuit", "Binary", "Quantum", "Vector", "Neural"
 ];
 
-// AI player timers
-const aiPlayers = new Map(); // playerId -> aiPlayerData
+// AI player configuration constants
 const AI_MIN_GUESS_TIME = 8000; // 8 seconds
 const AI_MAX_GUESS_TIME = 15000; // 15 seconds
 const AI_LAST_CHANCE_TIME = 10000; // 10 seconds left
@@ -193,7 +192,7 @@ io.on('connection', (socket) => {
         }
         
         // Get the last AI player ID in the room
-        const aiPlayersList = Array.from(game.aiPlayers);
+        const aiPlayersList = Array.from(game.aiPlayers.keys());
         const lastAiPlayerId = aiPlayersList[aiPlayersList.length - 1];
 
         removeAIPlayer(roomCode, lastAiPlayerId);
@@ -514,13 +513,9 @@ io.on('connection', (socket) => {
                     }
                     
                     // Clean up all AI players if the room is empty
-                    game.aiPlayers.forEach(aiPlayerId => {
-                        const aiData = aiPlayers.get(aiPlayerId);
-                        if (aiData) {
-                            if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
-                            if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-                            aiPlayers.delete(aiPlayerId);
-                        }
+                    game.aiPlayers.forEach((aiData, aiPlayerId) => {
+                        if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
+                        if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
                     });
                     game.aiPlayers.clear();
                 
@@ -529,14 +524,10 @@ io.on('connection', (socket) => {
                     console.log(`Room ${roomCode}| Only contains AI players now. Removing all AI players.`);
 
                     // Remove all AI players
-                    game.aiPlayers.forEach(aiPlayerId => {
+                    game.aiPlayers.forEach((aiData, aiPlayerId) => {
                         // Clean up AI player data
-                        const aiData = aiPlayers.get(aiPlayerId);
-                        if (aiData) {
-                            if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
-                            if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-                            aiPlayers.delete(aiPlayerId);
-                        }
+                        if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
+                        if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
                         
                         // Remove from players list
                         game.players.delete(aiPlayerId);
@@ -650,22 +641,19 @@ function createRoom(roomCode, isPublic = false) {
         singlePlayerTimestamp: null,  // Track when the room has only one player
         // Default AI generation prompt template
         customPrompt: PROMPT_CONFIG.DEFAULT_PROMPT,
-        aiPlayers: new Set()          // Store IDs of AI players
+        aiPlayers: new Map()          // Store AI player metadata (ID -> data)
     });
 }
 
 function deleteRoom(roomCode) {
     const game = games.get(roomCode);
     if (!game) return;
+    
     // Clean up AI player resources
     if (game.aiPlayers && game.aiPlayers.size > 0) {
-        game.aiPlayers.forEach(aiPlayerId => {
-            const aiData = aiPlayers.get(aiPlayerId);
-            if (aiData) {
-                if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
-                if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-                aiPlayers.delete(aiPlayerId);
-            }
+        game.aiPlayers.forEach((aiData, aiPlayerId) => {
+            if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
+            if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
         });
     }
 
@@ -714,11 +702,8 @@ function createAIPlayer(roomCode) {
         isAI: true 
     });
     
-    // Store the AI player in the game's AI players set
-    game.aiPlayers.add(aiPlayerId);
-    
-    // Initialize AI player data
-    aiPlayers.set(aiPlayerId, {
+    // Initialize AI player data within the game object
+    game.aiPlayers.set(aiPlayerId, {
         roomCode: roomCode,
         lastDrawingData: null,
         lastGuessTime: 0,
@@ -735,19 +720,15 @@ function removeAIPlayer(roomCode, aiPlayerId) {
     const game = games.get(roomCode);
     if (!game) return null;
 
-    // Get AI player name before removing
-    const aiPlayerName = game.players.get(aiPlayerId).username;
-        
     // Remove the AI player
     game.players.delete(aiPlayerId);
-    game.aiPlayers.delete(aiPlayerId);
-    
+
     // Clean up timers and other resources
-    const aiData = aiPlayers.get(aiPlayerId);
+    const aiData = game.aiPlayers.get(aiPlayerId);
     if (aiData) {
         if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
         if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-        aiPlayers.delete(aiPlayerId);
+        game.aiPlayers.delete(aiPlayerId);
     }
     
     // If the current drawer was this AI, start a new turn
@@ -857,12 +838,9 @@ function handleAIPlayerDrawingUpdate(roomCode, drawingData) {
     if (game.aiPlayers.size === 0 || game.voting) return;
     
     // Process for each AI player
-    game.aiPlayers.forEach(aiPlayerId => {
+    game.aiPlayers.forEach((aiData, aiPlayerId) => {
         // Skip if this AI is the drawer
         if (aiPlayerId === game.currentDrawer) return;
-        
-        const aiData = aiPlayers.get(aiPlayerId);
-        if (!aiData) return;
         
         // Store the current drawing data for comparison
         const hasChanges = aiData.lastDrawingData !== drawingData;
@@ -907,32 +885,29 @@ function resetAIPlayerGuessTimers(roomCode) {
     if (!game) return;
     
     // Clear all existing AI guess timers
-    game.aiPlayers.forEach(aiPlayerId => {
-        const aiData = aiPlayers.get(aiPlayerId);
-        if (aiData) {
-            if (aiData.guessTimer) {
-                clearTimeout(aiData.guessTimer);
-                aiData.guessTimer = null;
-            }
+    game.aiPlayers.forEach((aiData, aiPlayerId) => {
+        if (aiData.guessTimer) {
+            clearTimeout(aiData.guessTimer);
+            aiData.guessTimer = null;
+        }
+        
+        // Reset the last guess time
+        aiData.lastGuessTime = 0;
+        aiData.lastDrawingData = null;
+        
+        // Set up last chance guess timer if this AI isn't the drawer
+        if (aiPlayerId !== game.currentDrawer) {
+            // Calculate time to set the last chance guess
+            const lastChanceTime = (roundDuration * 1000) - AI_LAST_CHANCE_TIME;
             
-            // Reset the last guess time
-            aiData.lastGuessTime = 0;
-            aiData.lastDrawingData = null;
-            
-            // Set up last chance guess timer if this AI isn't the drawer
-            if (aiPlayerId !== game.currentDrawer) {
-                // Calculate time to set the last chance guess
-                const lastChanceTime = (roundDuration * 1000) - AI_LAST_CHANCE_TIME;
-                
-                // Set a timer for the last chance guess
-                aiData.guessTimer = setTimeout(() => {
-                    // Only make a guess if there's a drawing and AI hasn't guessed recently
-                    const drawingData = drawings.get(roomCode);
-                    if (drawingData && Date.now() - aiData.lastGuessTime > AI_MAX_GUESS_TIME) {
-                        makeAIGuess(roomCode, aiPlayerId, drawingData);
-                    }
-                }, lastChanceTime);
-            }
+            // Set a timer for the last chance guess
+            aiData.guessTimer = setTimeout(() => {
+                // Only make a guess if there's a drawing and AI hasn't guessed recently
+                const drawingData = drawings.get(roomCode);
+                if (drawingData && Date.now() - aiData.lastGuessTime > AI_MAX_GUESS_TIME) {
+                    makeAIGuess(roomCode, aiPlayerId, drawingData);
+                }
+            }, lastChanceTime);
         }
     });
 }
@@ -940,9 +915,10 @@ function resetAIPlayerGuessTimers(roomCode) {
 // Make an AI player guess
 async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
     const game = games.get(roomCode);
-    const aiData = aiPlayers.get(aiPlayerId);
+    if (!game) return;
     
-    if (!game || !aiData || game.voting) return;
+    const aiData = game.aiPlayers.get(aiPlayerId);
+    if (!aiData || game.voting) return;
     
     try {
         // Only make a guess if there's actual drawing data
@@ -997,10 +973,10 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
 // Schedule an AI player to create a drawing
 function scheduleAIDrawing(roomCode, aiPlayerId, prompt) {
     const game = games.get(roomCode);
-    const aiData = aiPlayers.get(aiPlayerId);
+    if (!game) return;
     
-    if (!game || !aiData) return;
-    
+    const aiData = game.aiPlayers.get(aiPlayerId);
+    if (!aiData) return;
     
     // Schedule the drawing after a short delay
     aiData.drawingTimer = setTimeout(() => {
@@ -1011,9 +987,10 @@ function scheduleAIDrawing(roomCode, aiPlayerId, prompt) {
 // Create an AI drawing
 async function createAIDrawing(roomCode, aiPlayerId, prompt) {
     const game = games.get(roomCode);
-    const aiData = aiPlayers.get(aiPlayerId);
+    if (!game) return;
     
-    if (!game || !aiData || game.currentDrawer !== aiPlayerId) return;
+    const aiData = game.aiPlayers.get(aiPlayerId);
+    if (!aiData || game.currentDrawer !== aiPlayerId) return;
     
     try {
         

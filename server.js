@@ -169,6 +169,8 @@ io.on('connection', (socket) => {
         const roomCode = uuidv4().slice(0, 6).toUpperCase();
         socket.join(roomCode);
         
+        console.log(`Room created: ${roomCode} by ${username}, isPublic: ${isPublic}`);
+        
         // Initialize the game
         initializeGame(roomCode, socket.id, username, isPublic);
         
@@ -364,6 +366,7 @@ io.on('connection', (socket) => {
                 uniqueUsername = `${username}(${counter})`;
                 counter++;
             }
+            
             game.players.set(socket.id, { username: uniqueUsername, score: 0, color: getRandomColor() });
             socket.emit('roomJoined', { roomCode, username: uniqueUsername });
             
@@ -662,7 +665,7 @@ function startTurn(roomCode) {
         console.log(`No players in room ${roomCode}, can't start turn`);
         return;
     }
-
+    
     game.voting = false;
     game.votes.clear();
     game.chatHistory = [];
@@ -687,10 +690,13 @@ function startTurn(roomCode) {
         }
     }
     
+    const drawerUsername = game.players.get(game.currentDrawer).username;
+    
     game.currentPrompt = prompts[Math.floor(Math.random() * prompts.length)];
+    
     io.to(game.currentDrawer).emit('newPrompt', game.currentPrompt);
     io.to(roomCode).emit('newTurn', {
-        drawer: game.players.get(game.currentDrawer).username,
+        drawer: drawerUsername,
         drawerId: game.currentDrawer,
         round: game.round,
     });
@@ -1416,5 +1422,24 @@ function cleanupOldImages() {
 setInterval(cleanupOldImages, 60 * 60 * 1000);
 // Run the rooms cleanup every 15 seconds
 setInterval(cleanupRooms, 15 * 1000);
+
+// Log total users and rooms every 5 minutes
+setInterval(() => {
+    // Count total users across all rooms
+    let totalUsers = 0;
+    let totalAIPlayers = 0;
+    let activeRooms = 0;
+    let publicRoomsCount = 0;
+    
+    games.forEach(game => {
+        const humanPlayerCount = game.players.size - game.aiPlayers.size;
+        totalUsers += humanPlayerCount;
+        totalAIPlayers += game.aiPlayers.size;
+        activeRooms++;
+        if (game.isPublic) publicRoomsCount++;
+    });
+    
+    console.log(`Stats: ${totalUsers} users, ${totalAIPlayers} AI players, ${activeRooms} active rooms (${publicRoomsCount} public)`);
+}, 5 * 60 * 1000);
 
 server.listen(port, '0.0.0.0', () => console.log(`Server running on port ${port}`));

@@ -1268,9 +1268,7 @@ function updateGameState(roomCode) {
 
     const players = Array.from(game.players.entries()).map(([id, data]) => ({
         id,
-        username: data.username,
-        score: data.score,
-        color: data.color,
+        ...data
     }));
     
     // Ensure we have a valid drawer

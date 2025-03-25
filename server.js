@@ -832,8 +832,12 @@ function startTurn(roomCode) {
     }
     
     // If the current drawer is an AI player, schedule the drawing
-    if (game.aiPlayers.has(game.currentDrawer)) {
-        scheduleAIDrawing(roomCode, game.currentDrawer, game.currentPrompt);
+    const aiData = game.aiPlayers.get(game.currentDrawer);
+    if (aiData) {
+        // Schedule the drawing after a short delay
+        aiData.drawingTimer = setTimeout(() => {
+            createAIDrawing(roomCode, game.currentDrawer, game.currentPrompt);
+        }, AI_DRAWING_TIME);
     }
     
     // Reset AI player guessing timers
@@ -979,20 +983,6 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
     }
 }
 
-// Schedule an AI player to create a drawing
-function scheduleAIDrawing(roomCode, aiPlayerId, prompt) {
-    const game = games.get(roomCode);
-    if (!game) return;
-    
-    const aiData = game.aiPlayers.get(aiPlayerId);
-    if (!aiData) return;
-    
-    // Schedule the drawing after a short delay
-    aiData.drawingTimer = setTimeout(() => {
-        createAIDrawing(roomCode, aiPlayerId, prompt);
-    }, AI_DRAWING_TIME);
-}
-
 // Create an AI drawing
 async function createAIDrawing(roomCode, aiPlayerId, prompt) {
     const game = games.get(roomCode);
@@ -1003,7 +993,7 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
     
     try {
         
-        const doodlePrompt = `Create a simple black and white Pictionary-style drawing of a "${prompt}". Make it look hand-drawn, simple, and easily recognizable as a ${prompt}. The drawing should be stylized like a human would draw it when playing Pictionary - simple lines, no shading, minimal details.`;
+        const doodlePrompt = `Create a fun black and white Pictionary-style drawing of a "${prompt}". Make it look hand-drawn and somewhat recognizable ${prompt}. The drawing should be stylized like a human would draw it when playing Pictionary - simple lines, no shading, minimal details.`;
         
         const result = await requestGeminiResponse(doodlePrompt);
         

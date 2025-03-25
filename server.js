@@ -992,7 +992,7 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
     if (!aiData || game.currentDrawer !== aiPlayerId) return;
     
     try {
-        
+        prompt = "something wacky and fun!";
         const doodlePrompt = `Create a fun black and white Pictionary-style drawing of a "${prompt}". Make it look hand-drawn and somewhat recognizable ${prompt}. The drawing should be stylized like a human would draw it when playing Pictionary - simple lines, no shading, minimal details.`;
         
         const result = await requestGeminiResponse(doodlePrompt);

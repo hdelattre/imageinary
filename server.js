@@ -561,7 +561,9 @@ io.on('connection', (socket) => {
                 // If host left, reassign host status to the first remaining player
                 if (wasHost && game.players.size > 0) {
                     // The new first player is now the host
-                    console.log(`Host left room ${roomCode}, new host: ${Array.from(game.players.keys())[0]}`);
+                    const newHostName = Array.from(game.players.keys())[0];
+                    console.log(`Host left room ${roomCode}, new host: ${newHostName}`);
+                    sendSystemMessage(roomCode, `The host has left! ${newHostName} is now the host.`);
                 }
                 
                 // Update game state for remaining players if there are any
@@ -1029,7 +1031,7 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
         io.to(roomCode).emit('drawingUpdate', blankCanvasData);
         
         // Let clients know about the AI drawing failure
-        sendSystemMessage(roomCode, `AI player had trouble drawing "${prompt}"`)
+        sendSystemMessage(roomCode, `AI player had trouble drawing "${prompt}"`);
     }
 }
 

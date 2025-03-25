@@ -224,11 +224,13 @@ io.on('connection', (socket) => {
         console.log(`Room ${roomCode}| Created by ${username}, isPublic: ${isPublic}`);
         
         // Initialize the game
-        initializeGame(roomCode, socket.id, username, isPublic);
+        createRoom(roomCode, isPublic);
+        const game = games.get(roomCode);
+
+        addPlayer(game, socket.id, username);
         
         // Store custom prompt if provided
         if (customPrompt) {
-            const game = games.get(roomCode);
             // Validate the prompt
             const validation = PROMPT_CONFIG.validatePrompt(customPrompt);
             if (validation.valid) {
@@ -386,8 +388,9 @@ io.on('connection', (socket) => {
                 uniqueUsername = `${username}(${counter})`;
                 counter++;
             }
-            
-            game.players.set(socket.id, { username: uniqueUsername, score: 0, color: getRandomColor() });
+
+            addPlayer(game, socket.id, uniqueUsername);
+
             socket.emit('roomJoined', { roomCode, username: uniqueUsername });
             
             // Reset emptiness timestamp since we have a new player
@@ -626,10 +629,10 @@ function getRandomColor() {
     return colors[Math.floor(Math.random() * colors.length)];
 }
 
-function initializeGame(roomCode, socketId, username, isPublic = false) {
+function createRoom(roomCode, isPublic = false) {
     games.set(roomCode, {
-        players: new Map([[socketId, { username, score: 0, color: getRandomColor() }]]),
-        currentDrawer: socketId,
+        players: new Map(),
+        currentDrawer: null,
         round: 1,
         timer: null,
         timerEnd: 0,
@@ -649,16 +652,34 @@ function initializeGame(roomCode, socketId, username, isPublic = false) {
         customPrompt: PROMPT_CONFIG.DEFAULT_PROMPT,
         aiPlayers: new Set()          // Store IDs of AI players
     });
-    
-    // If it's a public room, add it to the public rooms list
-    if (isPublic) {
-        updatePublicRoomsList(roomCode);
+}
+
+function deleteRoom(roomCode) {
+    const game = games.get(roomCode);
+    if (!game) return;
+    // Clean up AI player resources
+    if (game.aiPlayers && game.aiPlayers.size > 0) {
+        game.aiPlayers.forEach(aiPlayerId => {
+            const aiData = aiPlayers.get(aiPlayerId);
+            if (aiData) {
+                if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
+                if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
+                aiPlayers.delete(aiPlayerId);
+            }
+        });
     }
-    
-    // For a new room with a single player, set the single player timestamp
-    if (isPublic) {
-        games.get(roomCode).singlePlayerTimestamp = Date.now();
-    }
+
+    games.delete(roomCode);
+    drawings.delete(roomCode);
+    publicRooms.delete(roomCode);
+}
+
+function addPlayer(game, playerId, username) {
+    game.players.set(playerId, {
+        username: username,
+        score: 0,
+        color: getRandomColor()
+    });
 }
 
 // Create an AI player
@@ -1316,21 +1337,7 @@ function cleanupRooms() {
             if (emptyDuration > expiryTime) {
                 console.log(`Room ${roomCode}| Has been empty for ${Math.floor(emptyDuration/1000)} seconds. Removing.`);
                 
-                // Clean up AI player resources
-                if (game.aiPlayers && game.aiPlayers.size > 0) {
-                    game.aiPlayers.forEach(aiPlayerId => {
-                        const aiData = aiPlayers.get(aiPlayerId);
-                        if (aiData) {
-                            if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
-                            if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-                            aiPlayers.delete(aiPlayerId);
-                        }
-                    });
-                }
-                
-                games.delete(roomCode);
-                drawings.delete(roomCode);
-                publicRooms.delete(roomCode);
+                deleteRoom(roomCode);
                 return; // Skip further checks for this room
             }
         }
@@ -1345,22 +1352,8 @@ function cleanupRooms() {
                 // Notify the last player before removing the room
                 const lastPlayerId = Array.from(game.players.keys())[0];
                 io.to(lastPlayerId).emit('error', 'This room has expired due to inactivity. Please create or join a new room.');
-                
-                // Clean up AI player resources
-                if (game.aiPlayers && game.aiPlayers.size > 0) {
-                    game.aiPlayers.forEach(aiPlayerId => {
-                        const aiData = aiPlayers.get(aiPlayerId);
-                        if (aiData) {
-                            if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
-                            if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-                            aiPlayers.delete(aiPlayerId);
-                        }
-                    });
-                }
-                
-                games.delete(roomCode);
-                drawings.delete(roomCode);
-                publicRooms.delete(roomCode);
+
+                deleteRoom(roomCode);
                 return; // Skip further checks for this room
             }
         }

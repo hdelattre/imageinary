@@ -913,32 +913,6 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
         
     } catch (error) {
         console.error(`Error making AI guess: ${error.message}`);
-        // If there's an error, use a fallback guess
-        const fallbackGuesses = ["drawing", "sketch", "picture", "art", "lines", "shape"];
-        const guess = fallbackGuesses[Math.floor(Math.random() * fallbackGuesses.length)];
-        
-        // Only send a fallback guess if the AI exists
-        const aiPlayer = game.players.get(aiPlayerId);
-        if (aiPlayer) {
-            const timestamp = new Date().toLocaleTimeString();
-            io.to(roomCode).emit('newMessage', {
-                username: aiPlayer.username,
-                message: guess,
-                timestamp,
-                color: aiPlayer.color
-            });
-            
-            // Store the fallback message
-            aiData.lastGuessTime = Date.now();
-            game.lastMessages.set(aiPlayerId, guess);
-            game.chatHistory.push({
-                playerId: aiPlayerId,
-                username: aiPlayer.username,
-                message: guess,
-                timestamp,
-                color: aiPlayer.color
-            });
-        }
     }
 }
 

@@ -896,25 +896,42 @@ function handleVotingResults({ message, scores, votes }) {
 
     // Process votes if provided by the server
     if (votes) {
+        // Find winner(s) - player(s) with the highest vote count
+        let highestVoteCount = 0;
+        let winningPlayerIds = [];
+        
+        // First pass: find the highest vote count
+        Object.entries(votes).forEach(([playerId, voteCount]) => {
+            if (voteCount > highestVoteCount) {
+                highestVoteCount = voteCount;
+            }
+        });
+        
+        // Second pass: find all players with the highest vote count
+        Object.entries(votes).forEach(([playerId, voteCount]) => {
+            if (voteCount === highestVoteCount && voteCount > 0) {
+                winningPlayerIds.push(playerId);
+            }
+        });
+        
         // Delay to allow current user's vote animation to complete
         setTimeout(() => {
             // For each player who received votes
             Object.entries(votes).forEach(([playerId, voteCount]) => {
-                // Skip if vote count is 0 or if this is the player's own vote (already counted)
+                // Skip if vote count is 0
                 if (voteCount === 0) return;
-
+                
                 const container = document.querySelector(`.image-vote-container[data-player-id="${playerId}"]`);
                 if (container) {
                     const voteCounter = container.querySelector('.vote-counter');
                     const animationContainer = container.querySelector('.vote-animation-container');
                     const voteButton = container.querySelector('.vote-button');
-
-                    // Update vote count (except our own vote which was already counted)
-                    let displayCount = voteCount;
-                    voteCounter.textContent = displayCount;
-                    voteCounter.dataset.votes = displayCount;
+                    
+                    // Update vote count
+                    voteCounter.textContent = voteCount;
+                    voteCounter.dataset.votes = voteCount;
                     voteCounter.classList.add('has-votes');
-
+                    
                     // Create multiple flying votes with small delays for a cascade effect
                     for (let i = 0; i < voteCount; i++) {
                         // Create a random start position around the image for incoming votes
@@ -923,6 +940,17 @@ function handleVotingResults({ message, scores, votes }) {
                             createRandomVoteAnimation(voteCounter, animationContainer);
                         }, i * 200); // Stagger animations by 200ms
                     }
+                    
+                    // If this is a winning player, highlight their vote counter
+                    if (winningPlayerIds.includes(playerId)) {
+                        // Add a slight delay before highlighting winner to let animations finish
+                        setTimeout(() => {
+                            voteCounter.classList.add('winner');
+                            
+                            // Create winning celebration effect
+                            celebrateWinner(container);
+                        }, voteCount * 220 + 500); // Delay based on the number of vote animations + 500ms buffer
+                    }
                 }
             });
         }, 500); // Give time for the user's own vote animation to complete
@@ -930,6 +958,41 @@ function handleVotingResults({ message, scores, votes }) {
 
     // Add system message about voting results
     addSystemMessage(message);
+}
+
+// Function to create a celebration effect for winning images
+function celebrateWinner(container) {
+    // Add subtle background flash to the image container
+    const flashEffect = document.createElement('div');
+    flashEffect.style.position = 'absolute';
+    flashEffect.style.top = '0';
+    flashEffect.style.left = '0';
+    flashEffect.style.right = '0';
+    flashEffect.style.bottom = '0';
+    flashEffect.style.backgroundColor = 'rgba(46, 204, 113, 0.2)';
+    flashEffect.style.borderRadius = '8px';
+    flashEffect.style.opacity = '0';
+    flashEffect.style.pointerEvents = 'none';
+    flashEffect.style.transition = 'opacity 0.3s ease-in-out';
+    flashEffect.style.zIndex = '3';
+    
+    container.appendChild(flashEffect);
+    
+    // Animate the flash
+    setTimeout(() => {
+        flashEffect.style.opacity = '1';
+        
+        setTimeout(() => {
+            flashEffect.style.opacity = '0';
+            
+            // Remove the element after animation is complete
+            setTimeout(() => {
+                if (container.contains(flashEffect)) {
+                    container.removeChild(flashEffect);
+                }
+            }, 500);
+        }, 800);
+    }, 100);
 }
 
 // Handle a vote from another player

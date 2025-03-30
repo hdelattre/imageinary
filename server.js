@@ -1171,17 +1171,22 @@ async function generateNewImage(roomCode) {
             return;
         }
 
-        // Generate images for each guess
-        const generatedImages = [];
-        for (const guessData of guessesWithPlayers) {
-            // Use custom prompt template if available, otherwise use default
-            const promptTemplate = game.customPrompt ||
-                "Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. It must look like the provided sketch! Do not modify important shapes/silhouettes in the sketch, just fill them in. Make it look like the provided guess: {guess}";
+        // Create a directory for this room's generated images if it doesn't exist
+        const generatedDir = path.join(__dirname, 'public', 'generated');
+        fs.mkdirSync(generatedDir, { recursive: true });
 
-            // Replace the placeholder with the actual guess
-            const generationPrompt = promptTemplate.replace('{guess}', guessData.guess);
+        // Send a system message to let players know images are being generated
+        sendSystemMessage(roomCode, "Generating images from your guesses...");
 
+        // Create array of image generation promises to run in parallel
+        const imageGenerationPromises = guessesWithPlayers.map(async (guessData) => {
             try {
+                // Use custom prompt template if available, otherwise use default
+                const promptTemplate = game.customPrompt ||
+                    "Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. It must look like the provided sketch! Do not modify important shapes/silhouettes in the sketch, just fill them in. Make it look like the provided guess: {guess}";
+
+                // Replace the placeholder with the actual guess
+                const generationPrompt = promptTemplate.replace('{guess}', guessData.guess);
 
                 const result = await requestGeminiResponse(generationPrompt, drawingData);
                 const imageData = result.imageData;
@@ -1198,36 +1203,41 @@ async function generateNewImage(roomCode) {
                 const safePlayerId = guessData.playerId.replace(/[^a-zA-Z0-9-]/g, '');
                 const safeRound = String(game.round).replace(/[^0-9]/g, '');
                 const filename = `generated-${safeRoomCode}-${safeRound}-${safePlayerId}.png`;
-                const filePath = path.join(__dirname, 'public', 'generated', filename);
+                const filePath = path.join(generatedDir, filename);
 
                 // Validate the path is within the generated directory
                 const safePath = path.normalize(filePath);
-                const generatedDir = path.join(__dirname, 'public', 'generated');
                 if (!safePath.startsWith(generatedDir)) {
                     throw new Error('Invalid file path detected');
                 }
 
-                // Ensure the directory exists
-                fs.mkdirSync(path.dirname(safePath), { recursive: true });
+                // Write the image file
                 fs.writeFileSync(safePath, buffer);
 
-                generatedImages.push({
+                // Return the image data object
+                return {
                     playerId: guessData.playerId,
                     playerName: game.players.get(guessData.playerId).username,
                     guess: guessData.guess,
-                    imageSrc: `/generated/${filename}`, // Using the sanitized filename
+                    imageSrc: `/generated/${filename}`,
                     text: result.text || ''
-                });
-
+                };
             } catch (error) {
                 console.error(`Error generating image for guess "${guessData.guess}":`, error.message);
-                // Skip this guess but continue with others
-                continue;
+                // Return null for failed generations
+                return null;
             }
-        }
+        });
+
+        // Wait for all image generation promises to complete
+        const imageResults = await Promise.all(imageGenerationPromises);
+        
+        // Filter out any failed generations (null results)
+        const generatedImages = imageResults.filter(result => result !== null);
 
         // If we couldn't generate any images, start next turn
         if (generatedImages.length === 0) {
+            sendSystemMessage(roomCode, "Failed to generate any images from the guesses.");
             nextTurn(roomCode);
             return;
         }

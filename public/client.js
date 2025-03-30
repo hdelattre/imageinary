@@ -896,20 +896,21 @@ function handleVotingResults({ message, scores, votes }) {
 
     // Process votes if provided by the server
     if (votes) {
-        // Find winner(s) - player(s) with the highest vote count
-        let highestVoteCount = 0;
+        // Calculate total votes and determine winners
+        let totalVotes = 0;
         let winningPlayerIds = [];
         
-        // First pass: find the highest vote count
-        Object.entries(votes).forEach(([playerId, voteCount]) => {
-            if (voteCount > highestVoteCount) {
-                highestVoteCount = voteCount;
-            }
+        // First pass: calculate total votes
+        Object.values(votes).forEach(voteCount => {
+            totalVotes += voteCount;
         });
         
-        // Second pass: find all players with the highest vote count
+        // Minimum threshold for a win - more than 50% of votes
+        const winThreshold = totalVotes > 0 ? totalVotes / 2 : 0;
+        
+        // Second pass: find players who received more than 50% of votes
         Object.entries(votes).forEach(([playerId, voteCount]) => {
-            if (voteCount === highestVoteCount && voteCount > 0) {
+            if (voteCount > winThreshold) {
                 winningPlayerIds.push(playerId);
             }
         });

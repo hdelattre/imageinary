@@ -1165,8 +1165,7 @@ async function generateNewImage(roomCode) {
         const imageGenerationPromises = guessesWithPlayers.map(async (guessData) => {
             try {
                 // Use custom prompt template if available, otherwise use default
-                const promptTemplate = game.customPrompt ||
-                    "Make this pictionary sketch look hyperrealistic but also stay faithful to the borders and shapes in the sketch even if it looks weird. It must look like the provided sketch! Do not modify important shapes/silhouettes in the sketch, just fill them in. Make it look like the provided guess: {guess}";
+                const promptTemplate = game.customPrompt || PROMPT_CONFIG.DEFAULT_PROMPT;
 
                 // Replace the placeholder with the actual guess
                 const generationPrompt = promptTemplate.replace('{guess}', guessData.guess);

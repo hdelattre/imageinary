@@ -52,7 +52,7 @@ window.addEventListener('load', () => {
 
     // Set up auto-refresh for the rooms list
     restartRoomRefreshInterval();
-    
+
     // Handle tab visibility changes to prevent refresh buildup when tab is inactive
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
@@ -645,7 +645,6 @@ function startNewTurn({ drawer, drawerId, round }) {
     // Reset UI
     document.getElementById('chat').innerHTML = '';
     document.getElementById('voting').style.display = 'none';
-    document.getElementById('voteResults').style.display = 'none';
     document.getElementById('prompt').style.display = 'none';
 
     // Show drawing view
@@ -793,8 +792,7 @@ function startVoting(generatedImages) {
         votingImagesContainer.appendChild(imageContainer);
     });
 
-    // Hide the vote results initially
-    document.getElementById('voteResults').style.display = 'none';
+    // Start the voting phase
     votingArea.style.display = 'block';
 
     // Add system message about voting starting
@@ -808,11 +806,11 @@ function vote(imagePlayerId) {
     // Mark all other vote buttons as unselected and the voted one as selected
     document.querySelectorAll('.vote-button').forEach(btn => {
         btn.disabled = true;
-        
+
         // Get the parent container to determine if this is the voted image
         const container = btn.closest('.image-vote-container');
         const isVotedImage = container.dataset.playerId === imagePlayerId;
-        
+
         if (isVotedImage) {
             btn.classList.add('voted-selected'); // Green for selected
         } else {
@@ -822,9 +820,6 @@ function vote(imagePlayerId) {
 }
 
 function handleVotingResults({ message, scores }) {
-    document.getElementById('voteResults').textContent = message;
-    document.getElementById('voteResults').style.display = 'block';
-
     scores.forEach(playerScore => {
         const playerIndex = currentPlayers.findIndex(p => p.id === playerScore.id);
         if (playerIndex !== -1) {

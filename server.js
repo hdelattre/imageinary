@@ -1440,8 +1440,21 @@ function startVoting(roomCode) {
 function setPlayerVote(roomCode, playerId, voteId) {
     const game = games.get(roomCode);
     if (!game || !game.voting) return;
+    // Don't allow voting twice
+    if (game.votes.get(playerId)) return;
     // Store which player's image was voted for
     game.votes.set(playerId, voteId);
+
+    // Get the voter's information to send to other clients
+    const voter = game.players.get(playerId);
+    if (voter) {
+        // Emit playerVoted event to everyone in the room except the voter
+        io.to(roomCode).emit('playerVoted', {
+            playerId: voteId,
+            voterName: voter.username,
+            voterColor: voter.color
+        });
+    }
 
     // If everyone has voted, end voting early
     if (game.votes.size === game.players.size - 1) { // -1 for the drawer who doesn't vote
@@ -1517,12 +1530,19 @@ function tallyVotes(roomCode) {
         resultMessage = `No image received more than 50% of votes. No points awarded.`;
     }
 
+    // Convert vote count Map to object for client
+    const voteCountObj = {};
+    voteCount.forEach((count, playerId) => {
+        voteCountObj[playerId] = count;
+    });
+
     io.to(roomCode).emit('votingResults', {
         message: resultMessage,
         scores: Array.from(game.players.entries()).map(([id, data]) => ({
             id,
             score: data.score
         })),
+        votes: voteCountObj
     });
 
     setTimeout(() => {

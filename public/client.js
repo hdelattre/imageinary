@@ -777,15 +777,27 @@ function startVoting(generatedImages) {
         infoDiv.appendChild(nameElement);
         infoDiv.appendChild(document.createTextNode(': "' + imageData.guess + '"'));
 
+        // Add vote counter
+        const voteCounter = document.createElement('div');
+        voteCounter.className = 'vote-counter';
+        voteCounter.textContent = '0';
+        voteCounter.dataset.votes = '0';
+
+        // Add animation container for flying votes
+        const animationContainer = document.createElement('div');
+        animationContainer.className = 'vote-animation-container';
+
         // Add the vote button
         const voteButton = document.createElement('button');
         voteButton.textContent = 'Vote';
         voteButton.className = 'vote-button';
-        voteButton.onclick = () => vote(imageData.playerId);
+        voteButton.onclick = (e) => vote(imageData.playerId, e.target);
 
         // Add all elements to the container
         imageContainer.appendChild(img);
         imageContainer.appendChild(infoDiv);
+        imageContainer.appendChild(voteCounter);
+        imageContainer.appendChild(animationContainer);
         imageContainer.appendChild(voteButton);
 
         // Add the container to the voting area
@@ -799,8 +811,9 @@ function startVoting(generatedImages) {
     addSystemMessage("Time to vote! Pick your favorite image.");
 }
 
-function vote(imagePlayerId) {
+function vote(imagePlayerId, buttonElement) {
     const roomCode = document.getElementById('currentRoom').textContent;
+
     socket.emit('vote', { roomCode, imagePlayerId });
 
     // Mark all other vote buttons as unselected and the voted one as selected
@@ -813,13 +826,65 @@ function vote(imagePlayerId) {
 
         if (isVotedImage) {
             btn.classList.add('voted-selected'); // Green for selected
+            
+            // Get vote counter element
+            const voteCounter = container.querySelector('.vote-counter');
+            const animationContainer = container.querySelector('.vote-animation-container');
+            
+            // Update vote count
+            let currentVotes = parseInt(voteCounter.dataset.votes || '0');
+            currentVotes++;
+            voteCounter.textContent = currentVotes;
+            voteCounter.dataset.votes = currentVotes;
+            voteCounter.classList.add('has-votes');
+            
+            // Create flying vote animation
+            createFlyingVoteAnimation(buttonElement, voteCounter, animationContainer);
         } else {
             btn.classList.add('voted-unselected'); // Grey for unselected
         }
     });
 }
 
-function handleVotingResults({ message, scores }) {
+// Function to create a flying vote animation
+function createFlyingVoteAnimation(sourceElement, targetElement, container) {
+    // Create a flying vote element
+    const flyingVote = document.createElement('div');
+    flyingVote.className = 'flying-vote';
+    flyingVote.textContent = '+1';
+    
+    // Get source position (the vote button)
+    const sourceRect = sourceElement.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    
+    // Get target position (the vote counter)
+    const targetRect = targetElement.getBoundingClientRect();
+    
+    // Calculate start and end points relative to the animation container
+    const startX = sourceRect.left + sourceRect.width/2 - containerRect.left;
+    const startY = sourceRect.top + sourceRect.height/2 - containerRect.top;
+    const endX = targetRect.left + targetRect.width/2 - containerRect.left;
+    const endY = targetRect.top + targetRect.height/2 - containerRect.top;
+    
+    // Set custom properties for the animation
+    flyingVote.style.setProperty('--start-x', startX + 'px');
+    flyingVote.style.setProperty('--start-y', startY + 'px');
+    flyingVote.style.setProperty('--end-x', endX + 'px');
+    flyingVote.style.setProperty('--end-y', endY + 'px');
+    
+    // Position the flying vote at the start position
+    flyingVote.style.left = startX + 'px';
+    flyingVote.style.top = startY + 'px';
+    
+    // Add to container and remove after animation completes
+    container.appendChild(flyingVote);
+    setTimeout(() => {
+        container.removeChild(flyingVote);
+    }, 1000);
+}
+
+function handleVotingResults({ message, scores, votes }) {
+    // Update players scores
     scores.forEach(playerScore => {
         const playerIndex = currentPlayers.findIndex(p => p.id === playerScore.id);
         if (playerIndex !== -1) {
@@ -829,8 +894,133 @@ function handleVotingResults({ message, scores }) {
 
     updatePlayersList();
 
+    // Process votes if provided by the server
+    if (votes) {
+        // Delay to allow current user's vote animation to complete
+        setTimeout(() => {
+            // For each player who received votes
+            Object.entries(votes).forEach(([playerId, voteCount]) => {
+                // Skip if vote count is 0 or if this is the player's own vote (already counted)
+                if (voteCount === 0) return;
+                
+                const container = document.querySelector(`.image-vote-container[data-player-id="${playerId}"]`);
+                if (container) {
+                    const voteCounter = container.querySelector('.vote-counter');
+                    const animationContainer = container.querySelector('.vote-animation-container');
+                    const voteButton = container.querySelector('.vote-button');
+                    
+                    // Update vote count (except our own vote which was already counted)
+                    let displayCount = voteCount;
+                    voteCounter.textContent = displayCount;
+                    voteCounter.dataset.votes = displayCount;
+                    voteCounter.classList.add('has-votes');
+                    
+                    // Create multiple flying votes with small delays for a cascade effect
+                    for (let i = 0; i < voteCount; i++) {
+                        // Create a random start position around the image for incoming votes
+                        setTimeout(() => {
+                            // For votes from others, create a flying animation from a random edge
+                            createRandomVoteAnimation(voteCounter, animationContainer);
+                        }, i * 200); // Stagger animations by 200ms
+                    }
+                }
+            });
+        }, 500); // Give time for the user's own vote animation to complete
+    }
+
     // Add system message about voting results
     addSystemMessage(message);
+}
+
+// Handle a vote from another player
+function handlePlayerVote(targetPlayerId, voterName, voterColor) {
+    // Find the container for the image that was voted for
+    const container = document.querySelector(`.image-vote-container[data-player-id="${targetPlayerId}"]`);
+    if (!container) return;
+    
+    // Get the counter and animation container
+    const voteCounter = container.querySelector('.vote-counter');
+    const animationContainer = container.querySelector('.vote-animation-container');
+    
+    // Update vote count
+    let currentVotes = parseInt(voteCounter.dataset.votes || '0');
+    currentVotes++;
+    voteCounter.textContent = currentVotes;
+    voteCounter.dataset.votes = currentVotes;
+    voteCounter.classList.add('has-votes');
+    
+    // Create flying vote animation from a random edge
+    createRandomVoteAnimation(voteCounter, animationContainer, voterName, voterColor);
+    
+    // Add a subtle system message
+    const message = `${voterName} voted for an image`;
+    addSystemMessage(message, 'system-message vote-message');
+}
+
+// Function to create a random vote animation (for votes from other players)
+function createRandomVoteAnimation(targetElement, container, voterName, voterColor) {
+    const flyingVote = document.createElement('div');
+    flyingVote.className = 'flying-vote';
+    flyingVote.textContent = '+1';
+    
+    // Apply voter color if provided
+    if (voterColor) {
+        flyingVote.style.backgroundColor = voterColor;
+        flyingVote.style.boxShadow = `0 0 10px ${voterColor}`;
+    }
+    
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = targetElement.getBoundingClientRect();
+    
+    // Calculate end point (the vote counter)
+    const endX = targetRect.left + targetRect.width/2 - containerRect.left;
+    const endY = targetRect.top + targetRect.height/2 - containerRect.top;
+    
+    // Random start point from one of the edges
+    let startX, startY;
+    const side = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
+    
+    switch(side) {
+        case 0: // top
+            startX = Math.random() * containerRect.width;
+            startY = -30;
+            break;
+        case 1: // right
+            startX = containerRect.width + 30;
+            startY = Math.random() * containerRect.height;
+            break;
+        case 2: // bottom
+            startX = Math.random() * containerRect.width;
+            startY = containerRect.height + 30;
+            break;
+        case 3: // left
+            startX = -30;
+            startY = Math.random() * containerRect.height;
+            break;
+    }
+    
+    // Set custom properties for the animation
+    flyingVote.style.setProperty('--start-x', startX + 'px');
+    flyingVote.style.setProperty('--start-y', startY + 'px');
+    flyingVote.style.setProperty('--end-x', endX + 'px');
+    flyingVote.style.setProperty('--end-y', endY + 'px');
+    
+    // Position the flying vote at the start position
+    flyingVote.style.left = startX + 'px';
+    flyingVote.style.top = startY + 'px';
+    
+    // Add tooltip with voter name if provided
+    if (voterName) {
+        flyingVote.title = `Vote from ${voterName}`;
+    }
+    
+    // Add to container and remove after animation completes
+    container.appendChild(flyingVote);
+    setTimeout(() => {
+        if (container.contains(flyingVote)) {
+            container.removeChild(flyingVote);
+        }
+    }, 1000);
 }
 
 function displayNewMessage({ username, message, timestamp, color }) {
@@ -915,6 +1105,10 @@ socket.on('startVoting', (generatedImages) => {
 
 socket.on('votingResults', (resultsData) => {
     handleVotingResults(resultsData);
+});
+
+socket.on('playerVoted', ({ playerId, voterName, voterColor }) => {
+    handlePlayerVote(playerId, voterName, voterColor);
 });
 
 socket.on('startDisplayTimer', (seconds) => {

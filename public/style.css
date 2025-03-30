@@ -452,6 +452,17 @@ button:active {
     font-size: 0.9em;
 }
 
+/* Subtle vote messages */
+.vote-message {
+    font-size: 0.8em;
+    opacity: 0.8;
+    background-color: #2a2a2a;
+    padding: 3px 6px !important;
+    margin: 4px 0 !important;
+    border-left: 3px solid #3498db;
+    text-align: left !important;
+}
+
 #chatInput {
     width: 100%;
     padding: 10px;
@@ -608,6 +619,74 @@ button:active {
 
 .vote-button.voted-unselected:hover {
     background: rgba(127, 140, 141, 0.9);
+}
+
+/* Vote counter styles */
+.vote-counter {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    font-weight: bold;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 5;
+}
+
+.vote-counter.has-votes {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* Vote animation container */
+.vote-animation-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/* Flying vote animation */
+@keyframes flyToCounter {
+    0% {
+        opacity: 1;
+        transform: translate(var(--start-x), var(--start-y)) scale(1);
+    }
+    80% {
+        opacity: 0.8;
+    }
+    100% {
+        opacity: 0;
+        transform: translate(var(--end-x), var(--end-y)) scale(0.5);
+    }
+}
+
+.flying-vote {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background-color: #3498db;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+    pointer-events: none;
+    box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+    animation: flyToCounter 0.8s forwards cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 #voteResults {

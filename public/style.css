@@ -442,6 +442,28 @@ button:active {
     line-height: 1.3;
 }
 
+/* Guess message styling */
+.guess-message {
+    position: relative;
+    margin-left: 3px !important;
+    padding-left: 10px !important;
+    padding-top: 4px !important;
+    padding-bottom: 6px !important;
+    margin-bottom: 8px !important;
+    background-color: rgba(52, 152, 219, 0.05);
+    border-left: 3px solid #3498db !important;
+    border-bottom: 1px dotted rgba(52, 152, 219, 0.3) !important;
+}
+
+.guess-message::before {
+    content: "✏️";
+    font-size: 0.8em;
+    opacity: 0.6;
+    position: absolute;
+    right: 8px;
+    top: 4px;
+}
+
 .system-message {
     color: #888;
     font-style: italic;

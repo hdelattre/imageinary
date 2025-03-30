@@ -10,11 +10,26 @@ let undoStack = [];
 let lastDrawingSent = null;
 let drawingUpdateBuffer = 0;
 
+// Track players to detect joins and leaves
+let currentPlayers = [];
+
+// Variables for rate limiting refreshes
+let lastRoomsRefresh = 0;
+const REFRESH_COOLDOWN = 3000; // 3 seconds minimum between refreshes
+const REFRESH_INTERVAL = 15000; // 15 seconds auto-refresh interval
+
+// Current AI player count (accessible to all functions)
+let aiPlayerCount = 0;
+
+// Track the current timer interval so we can clear it
+let currentTimerInterval = null;
+
+// Set up auto-refresh for the public rooms
+let roomsRefreshInterval = null;
 
 ctx.lineCap = 'round';
 ctx.lineJoin = 'round';
 
-// Initialize the canvas with a white background
 // List of fun placeholder names
 const placeholderNames = [
     "ArtistAnon", "SketchWiz", "PixelPro", "DoodleDiva",
@@ -100,7 +115,7 @@ window.addEventListener('load', () => {
             modal.innerHTML = `
                 <div class="modal-content">
                     <h2>Enter Your Username</h2>
-                    <p>Please enter a username to join room ${roomParam}</p>
+                    <p>Please enter a username to join room</p>
                     <input type="text" id="modalUsername" placeholder="${getRandomName()}">
                     <button id="joinWithUsername">Join Game</button>
                 </div>
@@ -239,26 +254,6 @@ function toggleEraser() {
     }
 }
 
-document.getElementById('chatInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        const message = e.target.value.trim();
-        const roomCode = document.getElementById('currentRoom').textContent;
-        if (message && roomCode) {
-            socket.emit('sendMessage', { roomCode, message });
-            e.target.value = '';
-        }
-    }
-});
-
-document.getElementById('colorPicker').addEventListener('change', () => {
-    if (isEraser) {
-        // Switch out of eraser mode when a color is picked
-        isEraser = false;
-        document.getElementById('eraserBtn').classList.remove('eraser-active');
-        document.getElementById('colorPicker').disabled = false;
-    }
-});
-
 function sendDrawingUpdate() {
     const drawingData = canvas.toDataURL();
 
@@ -298,11 +293,6 @@ function clearCanvas() {
     }
 }
 
-// Variables for rate limiting refreshes
-let lastRoomsRefresh = 0;
-const REFRESH_COOLDOWN = 3000; // 3 seconds minimum between refreshes
-const REFRESH_INTERVAL = 15000; // 15 seconds auto-refresh interval
-
 // Load and display public rooms with rate limiting
 function loadPublicRooms() {
     const now = Date.now();
@@ -319,148 +309,6 @@ function loadPublicRooms() {
     // Show loading indicator
     const publicRoomsList = document.getElementById('publicRoomsList');
     publicRoomsList.innerHTML = '<div class="loading-rooms">Loading rooms...</div>';
-}
-
-// Set up auto-refresh for the public rooms
-let roomsRefreshInterval = null;
-
-// Handle received public rooms list
-socket.on('publicRoomsList', (rooms) => {
-    const publicRoomsList = document.getElementById('publicRoomsList');
-    publicRoomsList.innerHTML = '';
-
-    if (rooms.length === 0) {
-        publicRoomsList.innerHTML = '<div class="no-rooms">No public rooms available</div>';
-        return;
-    }
-
-    // Sort rooms: newer rooms first
-    rooms.sort((a, b) => b.createdAt - a.createdAt);
-
-    // Create a room item for each public room
-    rooms.forEach(room => {
-        const roomItem = document.createElement('div');
-        roomItem.className = 'room-item';
-        roomItem.dataset.roomCode = room.roomCode;
-
-        const roomInfo = document.createElement('div');
-        roomInfo.className = 'room-info';
-
-        const hostName = document.createElement('div');
-        hostName.className = 'room-host';
-        hostName.textContent = room.hostName;
-
-        const details = document.createElement('div');
-        details.className = 'room-details';
-        details.textContent = `${room.playerCount} player${room.playerCount !== 1 ? 's' : ''} • Round ${room.round}`;
-
-        const roomControls = document.createElement('div');
-        roomControls.className = 'room-controls';
-
-        const promptBtn = document.createElement('button');
-        promptBtn.className = 'icon-btn';
-        promptBtn.title = 'View AI Prompt';
-        promptBtn.innerHTML = '<span class="icon">🔮</span>';
-        promptBtn.onclick = (e) => {
-            e.stopPropagation();
-            promptEditor.showPromptModal(room.prompt);
-        };
-
-        const joinBtn = document.createElement('button');
-        joinBtn.className = 'room-join';
-        joinBtn.textContent = 'Join';
-        joinBtn.onclick = (e) => {
-            e.stopPropagation();
-            joinPublicRoom(room.roomCode);
-        };
-
-        roomInfo.appendChild(hostName);
-        roomInfo.appendChild(details);
-
-        roomControls.appendChild(promptBtn);
-        roomControls.appendChild(joinBtn);
-
-        roomItem.appendChild(roomInfo);
-        roomItem.appendChild(roomControls);
-
-        // Make the whole room item clickable
-        roomItem.onclick = () => joinPublicRoom(room.roomCode);
-
-        publicRoomsList.appendChild(roomItem);
-    });
-});
-
-// Join a public room
-function joinPublicRoom(roomCode) {
-    // Set the room code input
-    document.getElementById('roomCode').value = roomCode;
-    // Join the room
-    joinRoom();
-}
-
-socket.on('roomCreated', ({ roomCode, username, inviteLink }) => {
-    startGame(roomCode, username, inviteLink);
-});
-
-socket.on('roomJoined', ({ roomCode, username }) => {
-    startGame(roomCode, username);
-});
-
-function startGame(roomCode, username, inviteLink) {
-    // Clear the rooms refresh interval when game starts
-    if (roomsRefreshInterval) {
-        clearInterval(roomsRefreshInterval);
-        roomsRefreshInterval = null;
-    }
-
-    // Reset currentPlayers
-    currentPlayers = [];
-
-    document.getElementById('lobby').style.display = 'none';
-    document.getElementById('game').style.display = 'block';
-    document.getElementById('currentRoom').textContent = roomCode;
-
-    // Add welcome message for the player (only visible to them)
-    addSystemMessage(`Welcome to room ${roomCode}! You joined as ${username}`, 'system-message welcome-message');
-
-    // Initialize timer
-    document.getElementById('timer').textContent = getTimeString('--');
-
-    // Generate shareable link if not provided
-    if (!inviteLink) {
-        inviteLink = `${window.location.origin}/?room=${roomCode}`;
-    }
-
-    // Ensure the game interface is visible and scrollable
-    document.body.style.overflow = 'auto';
-}
-
-// AI Player Management Functions
-// Current AI player count (accessible to all functions)
-let aiPlayerCount = 0;
-
-// Function to add an AI player
-function addAIPlayer() {
-    if (aiPlayerCount >= PROMPT_CONFIG.MAX_AI_PLAYERS) return;
-
-    const roomCode = document.getElementById('currentRoom').textContent;
-    socket.emit('addAIPlayer', roomCode);
-}
-
-// Function to remove an AI player by ID
-function removeAIPlayer(aiPlayerId) {
-    if (aiPlayerCount <= 0) return;
-
-    const roomCode = document.getElementById('currentRoom').textContent;
-    socket.emit('removeAIPlayer', { roomCode, aiPlayerId });
-}
-
-// Function to remove the last AI player added
-function removeLastAIPlayer() {
-    if (aiPlayerCount <= 0) return;
-
-    const roomCode = document.getElementById('currentRoom').textContent;
-    socket.emit('removeLastAIPlayer', roomCode);
 }
 
 // Function to update the players list
@@ -518,7 +366,176 @@ function updatePlayersList() {
     }
 }
 
-socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
+// Join a public room
+function joinPublicRoom(roomCode) {
+    // Set the room code input
+    document.getElementById('roomCode').value = roomCode;
+    // Join the room
+    joinRoom();
+}
+
+function startGame(roomCode, username, inviteLink) {
+    // Clear the rooms refresh interval when game starts
+    if (roomsRefreshInterval) {
+        clearInterval(roomsRefreshInterval);
+        roomsRefreshInterval = null;
+    }
+
+    // Reset currentPlayers
+    currentPlayers = [];
+
+    document.getElementById('lobby').style.display = 'none';
+    document.getElementById('game').style.display = 'block';
+    document.getElementById('currentRoom').textContent = roomCode;
+
+    // Add welcome message for the player (only visible to them)
+    addSystemMessage(`Welcome to room ${roomCode}! You joined as ${username}`, 'system-message welcome-message');
+
+    // Initialize timer
+    document.getElementById('timer').textContent = getTimeString('--');
+
+    // Generate shareable link if not provided
+    if (!inviteLink) {
+        inviteLink = `${window.location.origin}/?room=${roomCode}`;
+    }
+
+    // Ensure the game interface is visible and scrollable
+    document.body.style.overflow = 'auto';
+}
+
+// Function to add an AI player
+function addAIPlayer() {
+    if (aiPlayerCount >= PROMPT_CONFIG.MAX_AI_PLAYERS) return;
+
+    const roomCode = document.getElementById('currentRoom').textContent;
+    socket.emit('addAIPlayer', roomCode);
+}
+
+// Function to remove an AI player by ID
+function removeAIPlayer(aiPlayerId) {
+    if (aiPlayerCount <= 0) return;
+
+    const roomCode = document.getElementById('currentRoom').textContent;
+    socket.emit('removeAIPlayer', { roomCode, aiPlayerId });
+}
+
+// Function to remove the last AI player added
+function removeLastAIPlayer() {
+    if (aiPlayerCount <= 0) return;
+
+    const roomCode = document.getElementById('currentRoom').textContent;
+    socket.emit('removeLastAIPlayer', roomCode);
+}
+
+// Function to display system messages in chat
+function addSystemMessage(message, className = 'system-message') {
+    const chatDiv = document.getElementById('chat');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = className;
+    messageDiv.textContent = message;
+    chatDiv.appendChild(messageDiv);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+// Helper function to format time with the clock emoji
+function getTimeString(seconds) {
+    return `⏱️ ${seconds}`;
+}
+
+function startDisplayTimer(seconds) {
+    // Clear any existing timer
+    if (currentTimerInterval) {
+        clearInterval(currentTimerInterval);
+    }
+
+    let timeLeft = seconds;
+    const timer = document.getElementById('timer');
+    timer.textContent = getTimeString(timeLeft);
+
+    currentTimerInterval = setInterval(() => {
+        timeLeft--;
+        timer.textContent = getTimeString(timeLeft);
+
+        // Add visual indicator when time is running low
+        if (timeLeft <= 10) {
+            timer.style.color = '#e74c3c';
+        } else {
+            timer.style.color = '';
+        }
+
+        if (timeLeft <= 0) {
+            clearInterval(currentTimerInterval);
+            currentTimerInterval = null;
+        }
+    }, 1000);
+}
+
+// Function to copy the room link
+function copyRoomLink() {
+    const roomCode = document.getElementById('currentRoom').textContent;
+    const roomLink = `${window.location.origin}/?room=${roomCode}`;
+    copyToClipboard(roomLink);
+}
+
+// Function to return to lobby
+function returnToLobby() {
+    // Reset game state
+    document.getElementById('game').style.display = 'none';
+    document.getElementById('lobby').style.display = 'block';
+
+    // Clear the game elements
+    document.getElementById('chat').innerHTML = '';
+    document.getElementById('players').innerHTML = '';
+    document.getElementById('currentRoom').textContent = '';
+    document.getElementById('drawer').textContent = '';
+    document.getElementById('drawer').dataset.id = '';
+    document.getElementById('round').textContent = '';
+    document.getElementById('timer').textContent = '';
+
+    // Reset drawing state
+    clearDrawCanvas();
+
+    // Restart the public rooms refresh interval
+    loadPublicRooms();
+    if (roomsRefreshInterval) {
+        clearInterval(roomsRefreshInterval);
+    }
+    roomsRefreshInterval = setInterval(() => loadPublicRooms(), REFRESH_INTERVAL);
+}
+
+// Function to handle setting drawing data when receiving drawing updates
+function setDrawingData(drawingData) {
+    if (!drawingData) {
+        // Clear canvas if empty data is received
+        clearDrawCanvas();
+        lastDrawingSent = '';
+        return;
+    }
+
+    // Check if we're the drawer - if so, only apply updates if they don't match our last sent state
+    // This prevents flickering from our own updates
+    if (socket.id === document.getElementById('drawer')?.dataset?.id) {
+        if (drawingData === lastDrawingSent) {
+            return;
+        }
+    }
+
+    const img = new Image();
+    img.onload = () => {
+        clearDrawCanvas();
+        // Scale and center the image to fit the canvas while maintaining aspect ratio
+        const scale = Math.min(
+            canvas.width / img.width,
+            canvas.height / img.height
+        );
+        const x = (canvas.width - img.width * scale) / 2;
+        const y = (canvas.height - img.height * scale) / 2;
+        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+    };
+    img.src = drawingData;
+}
+
+function updateGameState({ players, currentDrawer, round, voting }) {
     document.getElementById('round').textContent = round;
     const drawerPlayer = players.find(p => p.id === currentDrawer);
     document.getElementById('drawer').textContent = drawerPlayer ? drawerPlayer.username : "Unknown";
@@ -610,22 +627,9 @@ socket.on('gameState', ({ players, currentDrawer, round, voting }) => {
     } else {
         toolbar.classList.add('disabled');
     }
-});
-
-// Function to display system messages in chat
-function addSystemMessage(message, className = 'system-message') {
-    const chatDiv = document.getElementById('chat');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = className;
-    messageDiv.textContent = message;
-    chatDiv.appendChild(messageDiv);
-    chatDiv.scrollTop = chatDiv.scrollHeight;
 }
 
-// Track players to detect joins and leaves
-let currentPlayers = [];
-
-socket.on('newTurn', ({ drawer, drawerId, round }) => {
+function startNewTurn({ drawer, drawerId, round }) {
     document.getElementById('drawer').textContent = drawer;
     document.getElementById('drawer').dataset.id = drawerId;
     document.getElementById('round').textContent = round;
@@ -665,69 +669,81 @@ socket.on('newTurn', ({ drawer, drawerId, round }) => {
 
     // Add system message about new turn
     addSystemMessage(`Round ${round}: ${drawer} is now drawing!`);
-});
+}
 
-socket.on('newPrompt', (prompt) => {
+function showPrompt(prompt) {
     if (socket.id === document.getElementById('drawer').dataset.id) {
         document.getElementById('promptText').textContent = prompt;
         document.getElementById('prompt').style.display = 'block';
     }
-});
+}
 
-socket.on('drawingUpdate', (drawingData) => {
-    if (!drawingData) {
-        // Clear canvas if empty data is received
-        clearDrawCanvas();
-        lastDrawingSent = '';
+function displayPublicRooms(rooms) {
+    const publicRoomsList = document.getElementById('publicRoomsList');
+    publicRoomsList.innerHTML = '';
+
+    if (rooms.length === 0) {
+        publicRoomsList.innerHTML = '<div class="no-rooms">No public rooms available</div>';
         return;
     }
 
-    // Check if we're the drawer - if so, only apply updates if they don't match our last sent state
-    // This prevents flickering from our own updates
-    if (socket.id === document.getElementById('drawer')?.dataset?.id) {
-        if (drawingData === lastDrawingSent) {
-            return;
-        }
-    }
+    // Sort rooms: newer rooms first
+    rooms.sort((a, b) => b.createdAt - a.createdAt);
 
-    const img = new Image();
-    img.onload = () => {
-        clearDrawCanvas();
-        // Scale and center the image to fit the canvas while maintaining aspect ratio
-        const scale = Math.min(
-            canvas.width / img.width,
-            canvas.height / img.height
-        );
-        const x = (canvas.width - img.width * scale) / 2;
-        const y = (canvas.height - img.height * scale) / 2;
-        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-    };
-    img.src = drawingData;
-});
+    // Create a room item for each public room
+    rooms.forEach(room => {
+        const roomItem = document.createElement('div');
+        roomItem.className = 'room-item';
+        roomItem.dataset.roomCode = room.roomCode;
 
-socket.on('newMessage', ({ username, message, timestamp, color }) => {
-    const chatDiv = document.getElementById('chat');
-    const messageDiv = document.createElement('div');
+        const roomInfo = document.createElement('div');
+        roomInfo.className = 'room-info';
 
-    const usernameSpan = document.createElement('span');
-    usernameSpan.style.color = color;
-    usernameSpan.textContent = `${username}: `;
+        const hostName = document.createElement('div');
+        hostName.className = 'room-host';
+        hostName.textContent = room.hostName;
 
-    const messageText = document.createTextNode(message);
+        const details = document.createElement('div');
+        details.className = 'room-details';
+        details.textContent = `${room.playerCount} player${room.playerCount !== 1 ? 's' : ''} • Round ${room.round}`;
 
-    // Add both elements to the message div
-    messageDiv.appendChild(usernameSpan);
-    messageDiv.appendChild(messageText);
+        const roomControls = document.createElement('div');
+        roomControls.className = 'room-controls';
 
-    chatDiv.appendChild(messageDiv);
-    chatDiv.scrollTop = chatDiv.scrollHeight; // Auto-scroll to bottom
-});
+        const promptBtn = document.createElement('button');
+        promptBtn.className = 'icon-btn';
+        promptBtn.title = 'View AI Prompt';
+        promptBtn.innerHTML = '<span class="icon">🔮</span>';
+        promptBtn.onclick = (e) => {
+            e.stopPropagation();
+            promptEditor.showPromptModal(room.prompt);
+        };
 
-socket.on('systemMessage', ({ message, timestamp }) => {{
-    addSystemMessage(message);
-}});
+        const joinBtn = document.createElement('button');
+        joinBtn.className = 'room-join';
+        joinBtn.textContent = 'Join';
+        joinBtn.onclick = (e) => {
+            e.stopPropagation();
+            joinPublicRoom(room.roomCode);
+        };
 
-socket.on('startVoting', (generatedImages) => {
+        roomInfo.appendChild(hostName);
+        roomInfo.appendChild(details);
+
+        roomControls.appendChild(promptBtn);
+        roomControls.appendChild(joinBtn);
+
+        roomItem.appendChild(roomInfo);
+        roomItem.appendChild(roomControls);
+
+        // Make the whole room item clickable
+        roomItem.onclick = () => joinPublicRoom(room.roomCode);
+
+        publicRoomsList.appendChild(roomItem);
+    });
+}
+
+function startVoting(generatedImages) {
     // Hide drawing view and show voting view
     document.getElementById('drawing-view').style.display = 'none';
 
@@ -780,7 +796,7 @@ socket.on('startVoting', (generatedImages) => {
 
     // Add system message about voting starting
     addSystemMessage("Time to vote! Pick your favorite image.");
-});
+}
 
 function vote(imagePlayerId) {
     const roomCode = document.getElementById('currentRoom').textContent;
@@ -793,7 +809,7 @@ function vote(imagePlayerId) {
     });
 }
 
-socket.on('votingResults', ({ message, scores }) => {
+function handleVotingResults({ message, scores }) {
     document.getElementById('voteResults').textContent = message;
     document.getElementById('voteResults').style.display = 'block';
 
@@ -808,58 +824,97 @@ socket.on('votingResults', ({ message, scores }) => {
 
     // Add system message about voting results
     addSystemMessage(message);
+}
+
+function displayNewMessage({ username, message, timestamp, color }) {
+    const chatDiv = document.getElementById('chat');
+    const messageDiv = document.createElement('div');
+
+    const usernameSpan = document.createElement('span');
+    usernameSpan.style.color = color;
+    usernameSpan.textContent = `${username}: `;
+
+    const messageText = document.createTextNode(message);
+
+    // Add both elements to the message div
+    messageDiv.appendChild(usernameSpan);
+    messageDiv.appendChild(messageText);
+
+    chatDiv.appendChild(messageDiv);
+    chatDiv.scrollTop = chatDiv.scrollHeight; // Auto-scroll to bottom
+}
+
+// Event listeners
+document.getElementById('chatInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        const message = e.target.value.trim();
+        const roomCode = document.getElementById('currentRoom').textContent;
+        if (message && roomCode) {
+            socket.emit('sendMessage', { roomCode, message });
+            e.target.value = '';
+        }
+    }
+});
+
+document.getElementById('colorPicker').addEventListener('change', () => {
+    if (isEraser) {
+        // Switch out of eraser mode when a color is picked
+        isEraser = false;
+        document.getElementById('eraserBtn').classList.remove('eraser-active');
+        document.getElementById('colorPicker').disabled = false;
+    }
+});
+
+// Socket event handlers at the bottom
+socket.on('publicRoomsList', (rooms) => {
+    displayPublicRooms(rooms);
+});
+
+socket.on('roomCreated', ({ roomCode, username, inviteLink }) => {
+    startGame(roomCode, username, inviteLink);
+});
+
+socket.on('roomJoined', ({ roomCode, username }) => {
+    startGame(roomCode, username);
+});
+
+socket.on('gameState', (gameState) => {
+    updateGameState(gameState);
+});
+
+socket.on('newTurn', (turnData) => {
+    startNewTurn(turnData);
+});
+
+socket.on('newPrompt', (prompt) => {
+    showPrompt(prompt);
+});
+
+socket.on('drawingUpdate', (drawingData) => {
+    setDrawingData(drawingData);
+});
+
+socket.on('newMessage', (messageData) => {
+    displayNewMessage(messageData);
+});
+
+socket.on('systemMessage', ({ message, timestamp }) => {
+    addSystemMessage(message);
+});
+
+socket.on('startVoting', (generatedImages) => {
+    startVoting(generatedImages);
+});
+
+socket.on('votingResults', (resultsData) => {
+    handleVotingResults(resultsData);
+});
+
+socket.on('startDisplayTimer', (seconds) => {
+    startDisplayTimer(seconds);
 });
 
 socket.on('error', (message) => console.error(message));
-
-// Track the current timer interval so we can clear it
-let currentTimerInterval = null;
-
-// Helper function to format time with the clock emoji
-function getTimeString(seconds) {
-    return `⏱️ ${seconds}`;
-}
-
-function startTimer(seconds) {
-    // Clear any existing timer
-    if (currentTimerInterval) {
-        clearInterval(currentTimerInterval);
-    }
-
-    let timeLeft = seconds;
-    const timer = document.getElementById('timer');
-    timer.textContent = getTimeString(timeLeft);
-
-    currentTimerInterval = setInterval(() => {
-        timeLeft--;
-        timer.textContent = getTimeString(timeLeft);
-
-        // Add visual indicator when time is running low
-        if (timeLeft <= 10) {
-            timer.style.color = '#e74c3c';
-        } else {
-            timer.style.color = '';
-        }
-
-        if (timeLeft <= 0) {
-            clearInterval(currentTimerInterval);
-            currentTimerInterval = null;
-        }
-    }, 1000);
-}
-
-// Listen for timer start events from the server
-socket.on('startTimer', (seconds) => {
-    startTimer(seconds);
-});
-
-// Function to copy the room link
-function copyRoomLink() {
-    const roomCode = document.getElementById('currentRoom').textContent;
-    const roomLink = `${window.location.origin}/?room=${roomCode}`;
-    copyToClipboard(roomLink);
-}
-
 
 // Handle socket connection events
 socket.on('connect', () => {
@@ -880,30 +935,3 @@ socket.on('disconnect', () => {
         }
     }, 5000); // 5 seconds timeout before returning to lobby
 });
-
-// Function to return to lobby
-function returnToLobby() {
-    // Reset game state
-    document.getElementById('game').style.display = 'none';
-    document.getElementById('lobby').style.display = 'block';
-
-    // Clear the game elements
-    document.getElementById('chat').innerHTML = '';
-    document.getElementById('players').innerHTML = '';
-    document.getElementById('currentRoom').textContent = '';
-    document.getElementById('drawer').textContent = '';
-    document.getElementById('drawer').dataset.id = '';
-    document.getElementById('round').textContent = '';
-    document.getElementById('timer').textContent = '';
-
-    // Reset drawing state
-    clearDrawCanvas();
-
-    // Restart the public rooms refresh interval
-    loadPublicRooms();
-    if (roomsRefreshInterval) {
-        clearInterval(roomsRefreshInterval);
-    }
-    roomsRefreshInterval = setInterval(() => loadPublicRooms(), REFRESH_INTERVAL);
-}
-

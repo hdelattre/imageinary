@@ -414,13 +414,13 @@ io.on('connection', (socket) => {
                 // If we're in drawing phase
                 const remainingSeconds = Math.ceil((game.timerEnd - Date.now()) / 1000);
                 if (remainingSeconds > 0) {
-                    socket.emit('startTimer', remainingSeconds);
+                    socket.emit('startDisplayTimer', remainingSeconds);
                 }
             } else if (game.votingTimerEnd > Date.now()) {
                 // If we're in voting phase
                 const remainingSeconds = Math.ceil((game.votingTimerEnd - Date.now()) / 1000);
                 if (remainingSeconds > 0) {
-                    socket.emit('startTimer', remainingSeconds);
+                    socket.emit('startDisplayTimer', remainingSeconds);
                 }
             }
 
@@ -824,7 +824,7 @@ function startTurn(roomCode) {
     game.timer = setTimeout(() => endRound(roomCode), roundMs);
 
     // Start the timer on all clients
-    io.to(roomCode).emit('startTimer', roundDuration);
+    io.to(roomCode).emit('startDisplayTimer', roundDuration);
 
     updateGameState(roomCode);
 
@@ -1164,7 +1164,7 @@ function startVoting(roomCode) {
     game.votingTimer = setTimeout(() => tallyVotes(roomCode), 20000);
 
     // Start the voting timer on all clients
-    io.to(roomCode).emit('startTimer', 20);
+    io.to(roomCode).emit('startDisplayTimer', 20);
 }
 
 function tallyVotes(roomCode) {

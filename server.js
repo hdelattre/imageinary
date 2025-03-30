@@ -98,7 +98,7 @@ async function requestGeminiResponse(prompt, drawingData = null, textOnly = fals
     }
 
     // Log current usage for monitoring (optional)
-    if (true) {
+    if (false) {
         const now = Date.now();
         const windowMs = 60 * 1000;
         console.log(`Model usage: IMAGE_GEN=${modelUsage.IMAGE_GEN.filter(t => now - t < windowMs).length}/${MODELS.IMAGE_GEN.REQUESTS_PER_MINUTE}, FLASH=${modelUsage.FLASH.filter(t => now - t < windowMs).length}/${MODELS.FLASH.REQUESTS_PER_MINUTE}, FLASH_LITE=${modelUsage.FLASH_LITE.filter(t => now - t < windowMs).length}/${MODELS.FLASH_LITE.REQUESTS_PER_MINUTE}`);

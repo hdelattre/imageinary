@@ -636,7 +636,7 @@ function updateGameState({ players, currentDrawer, round, voting }) {
     }
 
     // Only disable chat for drawer during drawing phase (not during voting)
-    document.getElementById('chatInput').disabled = !voting && socket.id === currentDrawer;
+    refreshChatEnabled(voting, currentDrawer);
 
     // Always show toolbar but disable it if not the drawer
     const toolbar = document.getElementById('toolbar');
@@ -646,6 +646,14 @@ function updateGameState({ players, currentDrawer, round, voting }) {
     } else {
         toolbar.classList.add('disabled');
     }
+}
+
+function refreshChatEnabled(voting, currentDrawer) {
+    const chatDisabled = !voting && socket.id === currentDrawer;
+    const chatInput = document.getElementById('chatInput');
+    chatInput.disabled = chatDisabled;
+    chatInput.placeholder = chatDisabled ? "Drawing..." :
+        voting ? "Chat..." : "/g to guess...";
 }
 
 function startNewTurn({ drawer, drawerId, round }) {
@@ -765,7 +773,7 @@ function startVoting(generatedImages) {
     document.getElementById('drawing-view').style.display = 'none';
 
     // Re-enable chat for drawer
-    document.getElementById('chatInput').disabled = false;
+    refreshChatEnabled(true, null);
 
     // Show the voting area
     const votingArea = document.getElementById('voting');

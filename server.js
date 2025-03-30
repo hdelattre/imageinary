@@ -561,17 +561,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('vote', ({ roomCode, imagePlayerId }) => {
-        const game = games.get(roomCode);
-        if (game && game.voting) {
-            // Store which player's image was voted for
-            game.votes.set(socket.id, imagePlayerId);
-
-            // If everyone has voted, end voting early
-            if (game.votes.size === game.players.size - 1) { // -1 for the drawer who doesn't vote
-                clearTimeout(game.votingTimer);
-                tallyVotes(roomCode);
-            }
-        }
+        setPlayerVote(roomCode, socket.id, imagePlayerId);
     });
 
     socket.on('disconnect', () => {
@@ -1230,17 +1220,10 @@ Example response:
                     // Get the player ID associated with the selected image
                     const selectedImagePlayerId = game.generatedImages[vote].playerId;
 
-                    // Record the vote
-                    game.votes.set(aiPlayerId, selectedImagePlayerId);
-
                     // Send a message about the vote
                     sendPlayerMessage(roomCode, aiPlayerId, message, false);
 
-                    // Check if everyone has voted
-                    if (game.votes.size === game.players.size - 1) { // -1 for the drawer who doesn't vote
-                        clearTimeout(game.votingTimer);
-                        tallyVotes(roomCode);
-                    }
+                    setPlayerVote(roomCode, aiPlayerId, selectedImagePlayerId);
 
                 }, delay);
 
@@ -1248,19 +1231,17 @@ Example response:
                 console.error(`Error making AI vote: ${error.message}`);
 
                 // Fallback: make a random vote
-                setTimeout(() => {
-                    if (!game.voting) return;
+                if (!game.voting) return;
 
-                    // Pick a random image
-                    const randomIndex = Math.floor(Math.random() * game.generatedImages.length);
-                    const selectedImagePlayerId = game.generatedImages[randomIndex].playerId;
+                // Pick a random image
+                const randomIndex = Math.floor(Math.random() * game.generatedImages.length);
+                const randomImage = game.generatedImages[randomIndex];
+                const selectedImagePlayerId = randomImage.playerId;
 
-                    // Record the vote
-                    game.votes.set(aiPlayerId, selectedImagePlayerId);
+                // Send a generic message
+                sendPlayerMessage(roomCode, aiPlayerId, `My brain isn't working. I'll just pick the ${randomImage.guess}!`, false);
 
-                    // Send a generic message
-                    sendPlayerMessage(roomCode, aiPlayerId, "This one looks great!", false);
-                }, 3000 + Math.random() * 5000);
+                setPlayerVote(roomCode, aiPlayerId, selectedImagePlayerId);
             }
         }
     });
@@ -1454,6 +1435,19 @@ function startVoting(roomCode) {
 
     // Make AI players vote
     makeAIPlayersVote(roomCode);
+}
+
+function setPlayerVote(roomCode, playerId, voteId) {
+    const game = games.get(roomCode);
+    if (!game || !game.voting) return;
+    // Store which player's image was voted for
+    game.votes.set(playerId, voteId);
+
+    // If everyone has voted, end voting early
+    if (game.votes.size === game.players.size - 1) { // -1 for the drawer who doesn't vote
+        clearTimeout(game.votingTimer);
+        tallyVotes(roomCode);
+    }
 }
 
 function tallyVotes(roomCode) {

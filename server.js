@@ -208,7 +208,7 @@ const AI_GUESS_INTERVAL = 30000; // 30 seconds between guesses
 const AI_LAST_CHANCE_TIME = 10000; // 10 seconds left
 const AI_DRAWING_TIME = 3000; // 3 seconds to create drawing
 const AI_CHAT_PROBABILITY = 0.4; // 40% chance of sending a chat message instead of a guess
-const AI_CHAT_PROMPT = "You're playing a drawing game with friends. Look at this drawing and the chat history, then send a single casual, funny message as if you're a player. Don't guess what the drawing is. Instead, comment on the drawing process, react to other messages, or make a light joke. Keep it brief (1-2 sentences max) and conversational."
+const AI_CHAT_PROMPT = "You're playing a drawing game with friends. Look at this drawing and the chat history, then send a single casual, funny message as if you're a player. Don't guess what the drawing is. Instead, comment on the drawing process, react to other messages, or make a light joke. But surprising and sometimes controversial. Respond with your only chat message and nothing else."
 
 const roundDuration = 45;
 
@@ -1144,9 +1144,9 @@ async function makeAIChat(roomCode, aiPlayerId, drawingData) {
 
         // Set up the chat prompt with context
         const prompt = `${AI_CHAT_PROMPT}\n\nRecent chat:\n${recentChatHistory}`;
+        const textOnly = true;
 
-        // Use textOnly=true to utilize the faster model
-        const result = await requestGeminiResponse(prompt, drawingData, true);
+        const result = await requestGeminiResponse(prompt, drawingData, textOnly);
 
         let message = result.text.trim();
 

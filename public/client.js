@@ -55,6 +55,20 @@ window.addEventListener('load', () => {
 
     // Set up auto-refresh for the rooms list
     startRoomRefreshInterval();
+    
+    // Handle tab visibility changes to prevent refresh buildup when tab is inactive
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            // Pause the refresh interval when the tab is hidden
+            clearRoomRefreshInterval();
+        } else {
+            // Reset last refresh time and restart interval when tab becomes visible again
+            lastRoomsRefresh = Date.now();
+            startRoomRefreshInterval();
+            // Do an immediate refresh as well
+            loadPublicRooms();
+        }
+    });
 
     // Set up manual refresh button for public rooms
     document.getElementById('refreshRooms').addEventListener('click', () => {

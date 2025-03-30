@@ -17,44 +17,130 @@ const port = process.env.PORT || 3000;
 // Replace with your actual Gemini API key and model configuration
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+const MODELS = {
+    IMAGE_GEN: {
+        MODEL_NAME: "gemini-2.0-flash-exp-image-generation",
+        REQUESTS_PER_MINUTE: 10
+    },
+    FLASH: {
+        MODEL_NAME: "gemini-2.0-flash",
+        REQUESTS_PER_MINUTE: 15
+    },
+    FLASH_LITE: {
+        MODEL_NAME: "gemini-2.0-flash-lite",
+        REQUESTS_PER_MINUTE: 30
+    }
+};
+
 // Image generation model
 const imageModel = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-exp-image-generation",
+    model: MODELS.IMAGE_GEN.MODEL_NAME,
     generationConfig: {
         responseModalities: ['Text', 'Image']
     },
 });
 
-// Text-only model (faster for guesses)
-const textModel = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-lite",
+// Text-only models
+const flashModel = genAI.getGenerativeModel({
+    model: MODELS.FLASH.MODEL_NAME,
 });
 
+const flashLiteModel = genAI.getGenerativeModel({
+    model: MODELS.FLASH_LITE.MODEL_NAME,
+});
+
+// Track API usage for rate limiting
+const modelUsage = {
+    IMAGE_GEN: {
+        count: 0,
+        lastResetTime: Date.now()
+    },
+    FLASH: {
+        count: 0,
+        lastResetTime: Date.now()
+    },
+    FLASH_LITE: {
+        count: 0,
+        lastResetTime: Date.now()
+    }
+};
+
+// Reset usage counters every minute
+setInterval(() => {
+    const now = Date.now();
+    
+    // Reset counters that are over 1 minute old
+    if (now - modelUsage.IMAGE_GEN.lastResetTime >= 60000) {
+        modelUsage.IMAGE_GEN.count = 0;
+        modelUsage.IMAGE_GEN.lastResetTime = now;
+    }
+    
+    if (now - modelUsage.FLASH.lastResetTime >= 60000) {
+        modelUsage.FLASH.count = 0;
+        modelUsage.FLASH.lastResetTime = now;
+    }
+    
+    if (now - modelUsage.FLASH_LITE.lastResetTime >= 60000) {
+        modelUsage.FLASH_LITE.count = 0;
+        modelUsage.FLASH_LITE.lastResetTime = now;
+    }
+}, 10000); // Check every 10 seconds
+
+// Get the appropriate text model based on current usage
+function getTextModel() {
+    // Try to use gemini-2.0-flash first if under limit
+    if (modelUsage.FLASH.count < MODELS.FLASH.REQUESTS_PER_MINUTE) {
+        modelUsage.FLASH.count++;
+        return flashModel;
+    } 
+    // Fall back to flash-lite if flash is at limit
+    else if (modelUsage.FLASH_LITE.count < MODELS.FLASH_LITE.REQUESTS_PER_MINUTE) {
+        modelUsage.FLASH_LITE.count++;
+        return flashLiteModel;
+    }
+    return null;
+}
+
 async function requestGeminiResponse(prompt, drawingData = null, textOnly = false) {
-    try {
-        // Choose the appropriate model based on whether we need text-only or image generation
-        let geminiModel = textOnly ? textModel : imageModel;
+    let geminiModel;
 
-        // Prepare the request content based on whether there's drawing data
-        let content = [];
-        if (drawingData) {
-            // Extract base64 string from data URL if needed
-            let base64Data = drawingData;
-            if (drawingData.startsWith('data:')) {
-                base64Data = drawingData.split(',')[1];
-                if (!base64Data) {
-                    throw new Error('Invalid drawing data format');
-                }
+    // Choose the appropriate model based on whether we need text-only or image generation
+    if (textOnly) {
+        // For text-only requests, use the dynamic model selection
+        geminiModel = getTextModel();
+    } else if (modelUsage.IMAGE_GEN.count < MODELS.IMAGE_GEN.REQUESTS_PER_MINUTE) {
+        // For image generation, always use the image model
+        geminiModel = imageModel;
+        modelUsage.IMAGE_GEN.count++;
+    }
+
+    if (!geminiModel) {
+        throw new Error(`No ${textOnly ? 'text' : 'image'} generation models available due to rate limits`);
+    }
+    
+    // Log model usage for monitoring
+    // console.log(`Model usage: IMAGE_GEN=${modelUsage.IMAGE_GEN.count}/${MODELS.IMAGE_GEN.REQUESTS_PER_MINUTE}, FLASH=${modelUsage.FLASH.count}/${MODELS.FLASH.REQUESTS_PER_MINUTE}, FLASH_LITE=${modelUsage.FLASH_LITE.count}/${MODELS.FLASH_LITE.REQUESTS_PER_MINUTE}`);
+
+    // Prepare the request content based on whether there's drawing data
+    let content = [];
+    if (drawingData) {
+        // Extract base64 string from data URL if needed
+        let base64Data = drawingData;
+        if (drawingData.startsWith('data:')) {
+            base64Data = drawingData.split(',')[1];
+            if (!base64Data) {
+                throw new Error('Invalid drawing data format');
             }
-
-            content = [
-                prompt,
-                { inlineData: { data: base64Data, mimeType: 'image/png' } }
-            ];
-        } else {
-            content = [prompt];
         }
+        content = [
+            prompt,
+            { inlineData: { data: base64Data, mimeType: 'image/png' } }
+        ];
+    } else {
+        content = [prompt];
+    }
 
+    try {
         // Make the request to Gemini
         const response = await geminiModel.generateContent(content);
 

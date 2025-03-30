@@ -34,6 +34,11 @@ const MODELS = {
         REQUESTS_PER_MINUTE: 30,
         model: genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" })
     },
+    GEMINI_1_5_FLASH: {
+        NAME: "GEMINI_1_5",
+        REQUESTS_PER_MINUTE: 15,
+        model: genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+    },
     GEMINI_2_5_PRO_EXP: {
         NAME: "GEMINI_2_5_PRO_EXP",
         REQUESTS_PER_MINUTE: 5,
@@ -94,8 +99,8 @@ function useModel(modelName) {
 
 // Get the appropriate text model based on current usage
 function getTextModel() {
-    return useModel(MODELS.GEMINI_2_5_PRO_EXP.NAME) ||
-        useModel(MODELS.FLASH.NAME) || useModel(MODELS.FLASH_LITE.NAME);
+    return useModel(MODELS.FLASH.NAME) || useModel(MODELS.FLASH_LITE.NAME) ||
+        useModel(MODELS.GEMINI_1_5_FLASH.NAME);
 }
 
 function getImageModel() {

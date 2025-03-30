@@ -16,16 +16,24 @@ const port = process.env.PORT || 3000;
 
 // Replace with your actual Gemini API key and model configuration
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({
+
+// Image generation model
+const imageModel = genAI.getGenerativeModel({
     model: "gemini-2.0-flash-exp-image-generation",
     generationConfig: {
         responseModalities: ['Text', 'Image']
     },
 });
 
-async function requestGeminiResponse(prompt, drawingData = null) {
+// Text-only model (faster for guesses)
+const textModel = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash-lite",
+});
+
+async function requestGeminiResponse(prompt, drawingData = null, textOnly = false) {
     try {
-        let geminiModel = model;
+        // Choose the appropriate model based on whether we need text-only or image generation
+        let geminiModel = textOnly ? textModel : imageModel;
 
         // Prepare the request content based on whether there's drawing data
         let content = [];
@@ -80,10 +88,12 @@ async function requestGeminiResponse(prompt, drawingData = null) {
             result.text = textParts.map(part => part.text).join(' ').trim();
         }
 
-        // Extract image data if available
-        const imagePart = candidate.content.parts.find(part => part.inlineData);
-        if (imagePart && imagePart.inlineData && imagePart.inlineData.data) {
-            result.imageData = imagePart.inlineData.data;
+        // Extract image data if available (only for image model)
+        if (!textOnly) {
+            const imagePart = candidate.content.parts.find(part => part.inlineData);
+            if (imagePart && imagePart.inlineData && imagePart.inlineData.data) {
+                result.imageData = imagePart.inlineData.data;
+            }
         }
 
         return result;
@@ -955,7 +965,8 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
         // Only make a guess if there's actual drawing data
         if (!drawingData) return;
 
-        const result = await requestGeminiResponse(PROMPT_CONFIG.GUESS_PROMPT, drawingData);
+        // Use textOnly=true to utilize the faster model for guesses
+        const result = await requestGeminiResponse(PROMPT_CONFIG.GUESS_PROMPT, drawingData, true);
 
         let guess = result.text.trim();
 

@@ -50,11 +50,8 @@ window.addEventListener('load', () => {
     // Initialize the prompt editor functionality
     promptEditor.initPromptEditor(socket);
 
-    // Initialize public rooms list
-    loadPublicRooms();
-
     // Set up auto-refresh for the rooms list
-    startRoomRefreshInterval();
+    restartRoomRefreshInterval();
     
     // Handle tab visibility changes to prevent refresh buildup when tab is inactive
     document.addEventListener('visibilitychange', () => {
@@ -63,23 +60,15 @@ window.addEventListener('load', () => {
             clearRoomRefreshInterval();
         } else {
             // Reset last refresh time and restart interval when tab becomes visible again
-            lastRoomsRefresh = Date.now();
-            startRoomRefreshInterval();
-            // Do an immediate refresh as well
-            loadPublicRooms();
+            restartRoomRefreshInterval();
         }
     });
 
     // Set up manual refresh button for public rooms
     document.getElementById('refreshRooms').addEventListener('click', () => {
         // Reset the refresh timer when manually refreshed
-        if (roomsRefreshInterval) {
-            startRoomRefreshInterval();
-        }
-        loadPublicRooms();
+        restartRoomRefreshInterval();
     });
-
-    // AI player functionality is handled by the onclick attribute in HTML
 
     // Add keystroke handlers for the lobby form
     usernameInput.addEventListener('keypress', (e) => {
@@ -297,11 +286,13 @@ function clearCanvas() {
 }
 
 let roomsRefreshInterval = null;
-function startRoomRefreshInterval() {
+function restartRoomRefreshInterval() {
     if (roomsRefreshInterval) {
         clearInterval(roomsRefreshInterval);
     }
     roomsRefreshInterval = setInterval(() => loadPublicRooms(), REFRESH_INTERVAL);
+    // Immediate refresh
+    loadPublicRooms();
 }
 
 function clearRoomRefreshInterval() {
@@ -512,8 +503,7 @@ function returnToLobby() {
     clearDrawCanvas();
 
     // Restart the public rooms refresh interval
-    loadPublicRooms();
-    startRoomRefreshInterval();
+    restartRoomRefreshInterval();
 }
 
 // Function to handle setting drawing data when receiving drawing updates

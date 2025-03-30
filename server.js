@@ -43,10 +43,22 @@ const modelUsage = {
     FLASH_LITE: []
 };
 
-// Function to check if a model is available based on rolling window
+// Track paused models (models that have exceeded their daily quota)
+const pausedModels = new Map(); // modelKey -> unpause timestamp
+
+// Function to check if a model is available based on rolling window and pause status
 function isModelAvailable(modelKey, requestsPerMinute) {
     const now = Date.now();
     const windowMs = 60 * 1000; // 1 minute window
+
+    // Check if the model is paused
+    const unpauseTime = pausedModels.get(modelKey);
+    if (unpauseTime) {
+        if (now < unpauseTime) {
+            return false; // Model is paused
+        }
+        pausedModels.delete(modelKey);
+    }
 
     // Filter timestamps to keep only those within the last minute
     modelUsage[modelKey] = modelUsage[modelKey].filter(
@@ -57,11 +69,12 @@ function isModelAvailable(modelKey, requestsPerMinute) {
     return modelUsage[modelKey].length < requestsPerMinute;
 }
 
-// Periodic cleanup to remove old timestamps (runs every minute)
+// Periodic cleanup to remove old timestamps and check paused models (runs every minute)
 setInterval(() => {
     const now = Date.now();
     const windowMs = 60 * 1000;
 
+    // Clean up model usage timestamps
     modelUsage.IMAGE_GEN = modelUsage.IMAGE_GEN.filter(t => now - t < windowMs);
     modelUsage.FLASH = modelUsage.FLASH.filter(t => now - t < windowMs);
     modelUsage.FLASH_LITE = modelUsage.FLASH_LITE.filter(t => now - t < windowMs);
@@ -71,7 +84,7 @@ function useModel(modelName) {
     const modelInfo = MODELS[modelName];
     if (isModelAvailable(modelName, modelInfo.REQUESTS_PER_MINUTE)) {
         modelUsage[modelName].push(Date.now());
-        return modelInfo.model;
+        return modelInfo;
     }
     return null;
 }
@@ -125,7 +138,7 @@ async function requestGeminiResponse(prompt, drawingData = null, textOnly = fals
 
     try {
         // Make the request to Gemini
-        const response = await geminiModel.generateContent(content);
+        const response = await geminiModel.model.generateContent(content);
 
         if (response.response.candidates.length === 0) {
             throw new Error('No candidates returned by the model');
@@ -169,7 +182,31 @@ async function requestGeminiResponse(prompt, drawingData = null, textOnly = fals
 
     } catch (error) {
         console.error(`Gemini API error: ${error.message}`);
-        throw error; // Re-throw the error for the caller to handle
+
+        // Check for quota exceeded error (429 with specific details)
+        if (error.status === 429) {
+            const now = Date.now();
+            pausedModels.set(geminiModel.NAME, now + 30 * 1000); // 30 seconds
+            // Check if we hit a daily limit
+            const quotaFailure = error.errorDetails ? error.errorDetails.find(detail => detail['@type'] === 'type.googleapis.com/google.rpc.QuotaFailure') : null;
+            if (quotaFailure && quotaFailure.violations) {
+                const violation = quotaFailure.violations[0];
+                if (violation && violation.quotaMetric === 'generativelanguage.googleapis.com/generate_content_free_tier_requests' &&
+                    violation.quotaId.includes('GenerateRequestsPerDayPerProjectPerModel')) {
+                    // Daily quota exceeded, pause the model for 30 minutes
+                    const pauseDurationMs = 30 * 60 * 1000; // 30 minutes
+                    const unpauseTime = now + pauseDurationMs;
+                    pausedModels.set(geminiModel.NAME, unpauseTime);
+
+                    console.log(`Model ${geminiModel.NAME} paused for 30 minutes due to daily quota exceeded. Unpause at: ${new Date(unpauseTime).toLocaleTimeString()}`);
+
+                    // Throw a specific error to inform the caller
+                    throw new Error(`Daily quota exceeded for ${geminiModel.NAME}. Model paused for 30 minutes.`);
+                }
+            }
+        }
+
+        throw error; // Re-throw other errors for the caller to handle
     }
 }
 

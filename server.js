@@ -328,6 +328,8 @@ io.on('connection', (socket) => {
 
         socket.emit('roomCreated', { roomCode, username, inviteLink: `http://localhost:${port}/?room=${roomCode}`, isPublic });
 
+        sendSystemMessage("TIP: Use /g followed by your guess to submit a guess that will be used for image generation. Regular chat messages won't be used for generating images.")
+
         startGame(roomCode);
     });
 
@@ -507,6 +509,9 @@ io.on('connection', (socket) => {
 
             updateGameState(roomCode);
 
+            // Send help message about the /g command
+            sendSystemMessage(roomCode, "TIP: Use /g followed by your guess to submit a guess that will be used for image generation. Regular chat messages won't be used for generating images.");
+
             // Update public rooms list if this is a public room
             if (game.isPublic) {
                 updatePublicRoomsList(roomCode);
@@ -542,16 +547,17 @@ io.on('connection', (socket) => {
         if (now - lastTime < 1000) return;
         lastMessageTimes.set(socket.id, now);
 
-        message = sanitizeMessage(message, '.?!/');
+        message = sanitizeMessage(message, '/.?!');
 
-        const timestamp = new Date().toLocaleTimeString();
-        const username = game.players.get(socket.id).username;
-        const color = game.players.get(socket.id).color || '#000000'; // Default color if not set
+        let displayMessage = message;
+        // Check if this is a guess command (/g)
+        const isGuess = message.startsWith('/g ');
+        if (isGuess) {
+            // Remove the /g prefix for display
+            displayMessage = message.substring(3).trim();
+        }
 
-        game.chatHistory.push({ playerId: socket.id, username, message, timestamp, color });
-        game.lastMessages.set(socket.id, message);
-
-        io.to(roomCode).emit('newMessage', { username, message, timestamp, color });
+        sendPlayerMessage(roomCode, socket.id, displayMessage, isGuess);
     });
 
     socket.on('vote', ({ roomCode, imagePlayerId }) => {
@@ -685,6 +691,34 @@ function sendSystemMessage(roomCode, message) {
     });
 }
 
+function sendPlayerMessage(roomCode, playerId, message, isGuess) {
+    const game = games.get(roomCode);
+    if (!game) return;
+    const player = game.players.get(playerId);
+    if (!player) return;
+    const timestamp = new Date().toLocaleTimeString();
+    const username = player.username;
+    const color = player.color || '#000000';
+    const messageData = {
+        username,
+        message: message,
+        timestamp,
+        color,
+        isGuess
+    }
+
+    game.chatHistory.push({
+        playerId: playerId,
+        ...messageData
+    });
+
+    if (isGuess) {
+        game.lastGuesses.set(playerId, message);
+    }
+
+    io.to(roomCode).emit('newMessage', messageData);
+}
+
 function getRandomColor() {
     // Preset list of readable colors
     const colors = [
@@ -716,7 +750,7 @@ function createRoom(roomCode, isPublic = false) {
         votingTimerEnd: 0,
         currentPrompt: '',
         chatHistory: [],
-        lastMessages: new Map(),
+        lastGuesses: new Map(),
         votes: new Map(),
         generatedImages: [],
         voting: false,
@@ -875,7 +909,7 @@ function startTurn(roomCode) {
     game.voting = false;
     game.votes.clear();
     game.chatHistory = [];
-    game.lastMessages.clear();
+    game.lastGuesses.clear();
     game.imageSrc = '';
 
     // Clear the current drawing data
@@ -983,7 +1017,7 @@ function handleAIPlayerDrawingUpdate(roomCode, drawingData) {
             aiData.guessTimer = setTimeout(() => {
                 makeAIGuess(roomCode, aiPlayerId, drawingData);
             }, guessDelay);
-            
+
             // Randomly decide if we should also send a chat message before the guess
             if (Math.random() < AI_CHAT_PROBABILITY && guessDelay > 8000) {
                 // Add a chat message that comes before the guess
@@ -1075,26 +1109,7 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
         aiData.lastGuessTime = Date.now();
 
         // Send the guess as a message
-        const aiPlayer = game.players.get(aiPlayerId);
-        if (!aiPlayer) return;
-
-        const timestamp = new Date().toLocaleTimeString();
-        io.to(roomCode).emit('newMessage', {
-            username: aiPlayer.username,
-            message: guess,
-            timestamp,
-            color: aiPlayer.color
-        });
-
-        // Store the message for image generation
-        game.lastMessages.set(aiPlayerId, guess);
-        game.chatHistory.push({
-            playerId: aiPlayerId,
-            username: aiPlayer.username,
-            message: guess,
-            timestamp,
-            color: aiPlayer.color
-        });
+        sendPlayerMessage(roomCode, aiPlayerId, guess, true);
 
         // Maybe schedule a follow-up chat message
         if (Math.random() < 0.3) {
@@ -1123,7 +1138,7 @@ async function makeAIChat(roomCode, aiPlayerId, drawingData) {
         aiData.chatTimer = null;
 
         // Get chat history for context (last 5 messages)
-        const recentChatHistory = game.chatHistory.slice(-5).map(msg => 
+        const recentChatHistory = game.chatHistory.slice(-5).map(msg =>
             `${msg.username}: ${msg.message}`
         ).join('\n');
 
@@ -1135,26 +1150,7 @@ async function makeAIChat(roomCode, aiPlayerId, drawingData) {
 
         let message = result.text.trim();
 
-        // Send the chat message
-        const aiPlayer = game.players.get(aiPlayerId);
-        if (!aiPlayer) return;
-
-        const timestamp = new Date().toLocaleTimeString();
-        io.to(roomCode).emit('newMessage', {
-            username: aiPlayer.username,
-            message: message,
-            timestamp,
-            color: aiPlayer.color
-        });
-
-        // Add to chat history
-        game.chatHistory.push({
-            playerId: aiPlayerId,
-            username: aiPlayer.username,
-            message: message,
-            timestamp,
-            color: aiPlayer.color
-        });
+        sendPlayerMessage(roomCode, aiPlayerId, message, false);
 
     } catch (error) {
         console.error(`Error making AI chat: ${error.message}`);
@@ -1210,7 +1206,7 @@ function endRound(roomCode) {
     clearTimeout(game.timer);
 
     // Check if we have at least 2 players and valid guesses before generating images
-    if (game.players.size >= 2 && game.lastMessages.size > 0) {
+    if (game.players.size >= 2 && game.lastGuesses.size > 0) {
         generateNewImage(roomCode);
     } else {
         // Skip to next turn if we can't generate images
@@ -1229,7 +1225,7 @@ async function generateNewImage(roomCode) {
 
         // Generate an array of valid guesses with player info
         const guessesWithPlayers = [];
-        game.lastMessages.forEach((guess, playerId) => {
+        game.lastGuesses.forEach((guess, playerId) => {
             // Make sure the player still exists in the game
             if (guess && playerId !== game.currentDrawer && game.players.has(playerId)) {
                 guessesWithPlayers.push({

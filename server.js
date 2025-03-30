@@ -1169,14 +1169,14 @@ async function makeAIPlayersVote(roomCode) {
                     if (!game.voting) return;
 
                     // AI voting prompt
-                    const votingPrompt = `You're playing an image guessing game. Several players have made guesses, and images were generated based on those guesses. Please vote for the best image and explain why you like it.
+                    const votingPrompt = `You're playing an image guessing game. Several players have made guesses, and images were generated based on those guesses. Please vote for the best image and explain why you like it as if you were looking at it. Be witty and snarky.
 
 Available images:
 ${imageDescriptions}
 
 Respond with a JSON object that has:
 1. "vote": The number of the image you're voting for (1-${game.generatedImages.length})
-2. "message": A brief, fun comment explaining why you like this image
+2. "message": A brief, fun comment explaining why you like this image as if you were looking at it
 
 Example response:
 {

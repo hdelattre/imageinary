@@ -1,3 +1,5 @@
+let drawing = false;
+
 // Only prevent default on elements that shouldn't trigger actions
 document.addEventListener('touchend', function(event) {
     const nonActionTags = ['DIV', 'SPAN', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'CANVAS'];

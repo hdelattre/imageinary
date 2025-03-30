@@ -1,14 +1,10 @@
 const socket = io();
 
-// Setup connection monitoring
-let disconnectTimeout;
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-let drawing = false;
 let isEraser = false;
 let undoStack = [];
 let lastDrawingSent = null;
-let drawingUpdateBuffer = 0;
 
 // Track players to detect joins and leaves
 let currentPlayers = [];
@@ -20,12 +16,6 @@ const REFRESH_INTERVAL = 15000; // 15 seconds auto-refresh interval
 
 // Current AI player count (accessible to all functions)
 let aiPlayerCount = 0;
-
-// Track the current timer interval so we can clear it
-let currentTimerInterval = null;
-
-// Set up auto-refresh for the public rooms
-let roomsRefreshInterval = null;
 
 ctx.lineCap = 'round';
 ctx.lineJoin = 'round';
@@ -64,14 +54,13 @@ window.addEventListener('load', () => {
     loadPublicRooms();
 
     // Set up auto-refresh for the rooms list
-    roomsRefreshInterval = setInterval(() => loadPublicRooms(), REFRESH_INTERVAL);
+    startRoomRefreshInterval();
 
     // Set up manual refresh button for public rooms
     document.getElementById('refreshRooms').addEventListener('click', () => {
         // Reset the refresh timer when manually refreshed
         if (roomsRefreshInterval) {
-            clearInterval(roomsRefreshInterval);
-            roomsRefreshInterval = setInterval(() => loadPublicRooms(), REFRESH_INTERVAL);
+            startRoomRefreshInterval();
         }
         loadPublicRooms();
     });
@@ -293,6 +282,21 @@ function clearCanvas() {
     }
 }
 
+let roomsRefreshInterval = null;
+function startRoomRefreshInterval() {
+    if (roomsRefreshInterval) {
+        clearInterval(roomsRefreshInterval);
+    }
+    roomsRefreshInterval = setInterval(() => loadPublicRooms(), REFRESH_INTERVAL);
+}
+
+function clearRoomRefreshInterval() {
+    if (roomsRefreshInterval) {
+        clearInterval(roomsRefreshInterval);
+        roomsRefreshInterval = null;
+    }
+}
+
 // Load and display public rooms with rate limiting
 function loadPublicRooms() {
     const now = Date.now();
@@ -376,10 +380,7 @@ function joinPublicRoom(roomCode) {
 
 function startGame(roomCode, username, inviteLink) {
     // Clear the rooms refresh interval when game starts
-    if (roomsRefreshInterval) {
-        clearInterval(roomsRefreshInterval);
-        roomsRefreshInterval = null;
-    }
+    clearRoomRefreshInterval();
 
     // Reset currentPlayers
     currentPlayers = [];
@@ -442,6 +443,7 @@ function getTimeString(seconds) {
     return `⏱️ ${seconds}`;
 }
 
+let currentTimerInterval = null;
 function startDisplayTimer(seconds) {
     // Clear any existing timer
     if (currentTimerInterval) {
@@ -497,10 +499,7 @@ function returnToLobby() {
 
     // Restart the public rooms refresh interval
     loadPublicRooms();
-    if (roomsRefreshInterval) {
-        clearInterval(roomsRefreshInterval);
-    }
-    roomsRefreshInterval = setInterval(() => loadPublicRooms(), REFRESH_INTERVAL);
+    startRoomRefreshInterval();
 }
 
 // Function to handle setting drawing data when receiving drawing updates
@@ -638,7 +637,6 @@ function startNewTurn({ drawer, drawerId, round }) {
     clearDrawCanvas();
     undoStack = [];
     lastDrawingSent = null;
-    drawingUpdateBuffer = 0;
 
     // Reset UI
     document.getElementById('chat').innerHTML = '';
@@ -917,6 +915,7 @@ socket.on('startDisplayTimer', (seconds) => {
 socket.on('error', (message) => console.error(message));
 
 // Handle socket connection events
+let disconnectTimeout;
 socket.on('connect', () => {
     console.log('Connected to server');
     clearTimeout(disconnectTimeout);

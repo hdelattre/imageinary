@@ -207,6 +207,8 @@ const AI_MAX_GUESS_TIME = 12000; // 12 seconds
 const AI_GUESS_INTERVAL = 30000; // 30 seconds between guesses
 const AI_LAST_CHANCE_TIME = 10000; // 10 seconds left
 const AI_DRAWING_TIME = 3000; // 3 seconds to create drawing
+const AI_CHAT_PROBABILITY = 0.4; // 40% chance of sending a chat message instead of a guess
+const AI_CHAT_PROMPT = "You're playing a drawing game with friends. Look at this drawing and the chat history, then send a single casual, funny message as if you're a player. Don't guess what the drawing is. Instead, comment on the drawing process, react to other messages, or make a light joke. Keep it brief (1-2 sentences max) and conversational."
 
 const roundDuration = 45;
 
@@ -597,6 +599,7 @@ io.on('connection', (socket) => {
                     game.aiPlayers.forEach((aiData, aiPlayerId) => {
                         if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
                         if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
+                        if (aiData.chatTimer) clearTimeout(aiData.chatTimer);
                     });
                     game.aiPlayers.clear();
 
@@ -609,6 +612,7 @@ io.on('connection', (socket) => {
                         // Clean up AI player data
                         if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
                         if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
+                        if (aiData.chatTimer) clearTimeout(aiData.chatTimer);
 
                         // Remove from players list
                         game.players.delete(aiPlayerId);
@@ -814,7 +818,9 @@ function createAIPlayer(roomCode) {
         lastDrawingData: null,
         lastGuessTime: 0,
         guessTimer: null,
-        drawingTimer: null
+        drawingTimer: null,
+        lastChatTime: 0,
+        chatTimer: null
     });
 
     console.log(`Room ${roomCode}| AI player ${uniqueAiName} (${aiPlayerId}) added`);
@@ -834,6 +840,7 @@ function removeAIPlayer(roomCode, aiPlayerId) {
     if (aiData) {
         if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
         if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
+        if (aiData.chatTimer) clearTimeout(aiData.chatTimer);
         game.aiPlayers.delete(aiPlayerId);
     }
 
@@ -971,29 +978,52 @@ function handleAIPlayerDrawingUpdate(roomCode, drawingData) {
         }
         // Normal timed guess (not last chance)
         else if (timeSinceLastGuess > AI_GUESS_INTERVAL) {
-            // Pick a random time between MIN and MAX
-            const delay = AI_MIN_GUESS_TIME + Math.random() * (AI_MAX_GUESS_TIME - AI_MIN_GUESS_TIME);
+            // Pick a random time between MIN and MAX for the guess
+            const guessDelay = AI_MIN_GUESS_TIME + Math.random() * (AI_MAX_GUESS_TIME - AI_MIN_GUESS_TIME);
             aiData.guessTimer = setTimeout(() => {
                 makeAIGuess(roomCode, aiPlayerId, drawingData);
-            }, delay);
+            }, guessDelay);
+            
+            // Randomly decide if we should also send a chat message before the guess
+            if (Math.random() < AI_CHAT_PROBABILITY && guessDelay > 8000) {
+                // Add a chat message that comes before the guess
+                const chatDelay = Math.min(3000 + Math.random() * 3000, guessDelay - 3000);
+                aiData.chatTimer = setTimeout(() => {
+                    makeAIChat(roomCode, aiPlayerId, drawingData);
+                }, chatDelay);
+            }
+        }
+        // Maybe just add a chat message if it's too soon for a guess
+        else if (timeSinceLastGuess > 6000 && Math.random() < 0.3) {
+            aiData.chatTimer = setTimeout(() => {
+                makeAIChat(roomCode, aiPlayerId, drawingData);
+            }, 2000 + Math.random() * 3000);
         }
     });
 }
 
-// Reset AI player guess timers at the start of a new turn
+// Reset AI player timers at the start of a new turn
 function resetAIPlayerGuessTimers(roomCode) {
     const game = games.get(roomCode);
     if (!game) return;
 
-    // Clear all existing AI guess timers
+    // Clear all existing AI timers
     game.aiPlayers.forEach((aiData, aiPlayerId) => {
+        // Clear guess timer
         if (aiData.guessTimer) {
             clearTimeout(aiData.guessTimer);
             aiData.guessTimer = null;
         }
 
-        // Reset the last guess time
+        // Clear chat timer
+        if (aiData.chatTimer) {
+            clearTimeout(aiData.chatTimer);
+            aiData.chatTimer = null;
+        }
+
+        // Reset timers and data
         aiData.lastGuessTime = 0;
+        aiData.lastChatTime = 0;
         aiData.lastDrawingData = null;
     });
 
@@ -1005,8 +1035,9 @@ function resetAIPlayerGuessTimers(roomCode) {
 
         game.aiPlayers.forEach((aiData, aiPlayerId) => {
             if (aiPlayerId !== game.currentDrawer) {
-                // Only make a last chance guess if AI hasn't guessed this round
-                if (Date.now() - aiData.lastGuessTime > roundDuration) {
+                // Force a guess at the end (no chat) to make sure AI players take a guess
+                // Only make a last chance guess if AI hasn't interacted recently
+                if (Date.now() - aiData.lastGuessTime > roundDuration * 0.7) {
                     // Clear any existing guess timer
                     if (aiData.guessTimer) {
                         clearTimeout(aiData.guessTimer);
@@ -1014,6 +1045,7 @@ function resetAIPlayerGuessTimers(roomCode) {
                     // Make a guess soon (within 2-3 seconds)
                     const lastChanceDelay = 1000 + Math.random() * 2000;
                     aiData.guessTimer = setTimeout(() => {
+                        // Force a guess (not chat) for last chance timer
                         makeAIGuess(roomCode, aiPlayerId, drawingData);
                     }, lastChanceDelay);
                 }
@@ -1064,8 +1096,68 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
             color: aiPlayer.color
         });
 
+        // Maybe schedule a follow-up chat message
+        if (Math.random() < 0.3) {
+            const chatDelay = 5000 + Math.random() * 5000;
+            aiData.chatTimer = setTimeout(() => {
+                makeAIChat(roomCode, aiPlayerId, drawingData);
+            }, chatDelay);
+        }
+
     } catch (error) {
         console.error(`Error making AI guess: ${error.message}`);
+    }
+}
+
+// Make an AI player chat
+async function makeAIChat(roomCode, aiPlayerId, drawingData) {
+    const game = games.get(roomCode);
+    if (!game) return;
+
+    const aiData = game.aiPlayers.get(aiPlayerId);
+    if (!aiData || game.voting) return;
+
+    try {
+        // Record chat time
+        aiData.lastChatTime = Date.now();
+        aiData.chatTimer = null;
+
+        // Get chat history for context (last 5 messages)
+        const recentChatHistory = game.chatHistory.slice(-5).map(msg => 
+            `${msg.username}: ${msg.message}`
+        ).join('\n');
+
+        // Set up the chat prompt with context
+        const prompt = `${AI_CHAT_PROMPT}\n\nRecent chat:\n${recentChatHistory}`;
+
+        // Use textOnly=true to utilize the faster model
+        const result = await requestGeminiResponse(prompt, drawingData, true);
+
+        let message = result.text.trim();
+
+        // Send the chat message
+        const aiPlayer = game.players.get(aiPlayerId);
+        if (!aiPlayer) return;
+
+        const timestamp = new Date().toLocaleTimeString();
+        io.to(roomCode).emit('newMessage', {
+            username: aiPlayer.username,
+            message: message,
+            timestamp,
+            color: aiPlayer.color
+        });
+
+        // Add to chat history
+        game.chatHistory.push({
+            playerId: aiPlayerId,
+            username: aiPlayer.username,
+            message: message,
+            timestamp,
+            color: aiPlayer.color
+        });
+
+    } catch (error) {
+        console.error(`Error making AI chat: ${error.message}`);
     }
 }
 

@@ -997,6 +997,11 @@ function celebrateWinner(container) {
 
 // Handle a vote from another player
 function handlePlayerVote(targetPlayerId, voterName, voterColor) {
+    // Check if this is our own vote - we've already handled it locally
+    const ourPlayer = currentPlayers.find(p => p.id === socket.id);
+    const isOurVote = ourPlayer && ourPlayer.username === voterName;
+    if (isOurVote) return;
+
     // Find the container for the image that was voted for
     const container = document.querySelector(`.image-vote-container[data-player-id="${targetPlayerId}"]`);
     if (!container) return;

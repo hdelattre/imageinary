@@ -1157,6 +1157,115 @@ async function makeAIChat(roomCode, aiPlayerId, drawingData) {
     }
 }
 
+// Make AI players vote on generated images
+async function makeAIPlayersVote(roomCode) {
+    const game = games.get(roomCode);
+    if (!game || !game.voting || !game.generatedImages || game.generatedImages.length === 0 || game.aiPlayers.length === 0) return;
+
+    // Create a combined image with all options for the AI to see
+    // This would normally be a visual process, but we'll provide the AI with text descriptions
+    const imageDescriptions = game.generatedImages.map((img, index) => {
+        return `Image ${index + 1}: Created based on guess "${img.guess}" by ${img.playerName}`;
+    }).join('\n');
+
+    // Only make AI players vote if they're not the drawer
+    game.aiPlayers.forEach(async (aiData, aiPlayerId) => {
+        if (aiPlayerId !== game.currentDrawer) {
+            try {
+                // Add a random delay so all AI players don't vote at the exact same time
+                const delay = 2000 + Math.random() * 8000;
+                setTimeout(async () => {
+                    // Check if voting is still active
+                    if (!game.voting) return;
+
+                    // AI voting prompt
+                    const votingPrompt = `You're playing an image guessing game. Several players have made guesses, and images were generated based on those guesses. Please vote for the best image and explain why you like it.
+
+Available images:
+${imageDescriptions}
+
+Respond with a JSON object that has:
+1. "vote": The number of the image you're voting for (1-${game.generatedImages.length})
+2. "message": A brief, fun comment explaining why you like this image
+
+Example response:
+{
+  "vote": 2,
+  "message": "I love pickle man! Funniest thing I've ever seen"
+}`;
+
+                    // Get AI vote
+                    const result = await requestGeminiResponse(votingPrompt, null, true);
+
+                    let vote, message;
+                    try {
+                        // Trim response to just the JSON object
+                        const trimmedResponse = result.text.substring(
+                            result.text.indexOf('{'),
+                            result.text.lastIndexOf('}') + 1
+                        );
+
+                        // Parse the JSON response
+                        const jsonResponse = JSON.parse(trimmedResponse);
+                        vote = parseInt(jsonResponse.vote);
+                        message = jsonResponse.message;
+
+                        // Validate the vote
+                        if (isNaN(vote) || vote < 1 || vote > game.generatedImages.length) {
+                            throw new Error("Invalid vote number");
+                        }
+
+                        // Adjust vote to be 0-indexed to match the image array
+                        vote = vote - 1;
+
+                    } catch (parseError) {
+                        // If JSON parsing fails, use a fallback method
+                        console.error(`Error parsing AI vote JSON: ${parseError.message}`);
+
+                        // Pick a random image
+                        vote = Math.floor(Math.random() * game.generatedImages.length);
+                        message = "I like this one!";
+                    }
+
+                    // Get the player ID associated with the selected image
+                    const selectedImagePlayerId = game.generatedImages[vote].playerId;
+
+                    // Record the vote
+                    game.votes.set(aiPlayerId, selectedImagePlayerId);
+
+                    // Send a message about the vote
+                    sendPlayerMessage(roomCode, aiPlayerId, message, false);
+
+                    // Check if everyone has voted
+                    if (game.votes.size === game.players.size - 1) { // -1 for the drawer who doesn't vote
+                        clearTimeout(game.votingTimer);
+                        tallyVotes(roomCode);
+                    }
+
+                }, delay);
+
+            } catch (error) {
+                console.error(`Error making AI vote: ${error.message}`);
+
+                // Fallback: make a random vote
+                setTimeout(() => {
+                    if (!game.voting) return;
+
+                    // Pick a random image
+                    const randomIndex = Math.floor(Math.random() * game.generatedImages.length);
+                    const selectedImagePlayerId = game.generatedImages[randomIndex].playerId;
+
+                    // Record the vote
+                    game.votes.set(aiPlayerId, selectedImagePlayerId);
+
+                    // Send a generic message
+                    sendPlayerMessage(roomCode, aiPlayerId, "This one looks great!", false);
+                }, 3000 + Math.random() * 5000);
+            }
+        }
+    });
+}
+
 // Create an AI drawing
 async function createAIDrawing(roomCode, aiPlayerId, prompt) {
     const game = games.get(roomCode);
@@ -1342,6 +1451,9 @@ function startVoting(roomCode) {
 
     // Start the voting timer on all clients
     io.to(roomCode).emit('startDisplayTimer', 20);
+
+    // Make AI players vote
+    makeAIPlayersVote(roomCode);
 }
 
 function tallyVotes(roomCode) {

@@ -761,6 +761,7 @@ function startVoting(generatedImages) {
     generatedImages.forEach(imageData => {
         const imageContainer = document.createElement('div');
         imageContainer.className = 'image-vote-container';
+        imageContainer.dataset.playerId = imageData.playerId;
 
         // Add the image
         const img = document.createElement('img');
@@ -804,10 +805,19 @@ function vote(imagePlayerId) {
     const roomCode = document.getElementById('currentRoom').textContent;
     socket.emit('vote', { roomCode, imagePlayerId });
 
-    // Disable all vote buttons after voting
+    // Mark all other vote buttons as unselected and the voted one as selected
     document.querySelectorAll('.vote-button').forEach(btn => {
         btn.disabled = true;
-        btn.classList.add('voted');
+        
+        // Get the parent container to determine if this is the voted image
+        const container = btn.closest('.image-vote-container');
+        const isVotedImage = container.dataset.playerId === imagePlayerId;
+        
+        if (isVotedImage) {
+            btn.classList.add('voted-selected'); // Green for selected
+        } else {
+            btn.classList.add('voted-unselected'); // Grey for unselected
+        }
     });
 }
 

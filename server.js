@@ -965,7 +965,10 @@ function nextTurn(roomCode) {
     if (!game) return;
 
     clearTimeout(game.timer);
-    clearTimeout(game.votingTimer);
+    if (game.votingTimer) {
+        clearTimeout(game.votingTimer);
+        game.votingTimer = null;
+    }
     if (game.lastChanceTimer) {
         clearTimeout(game.lastChanceTimer);
         game.lastChanceTimer = null;
@@ -1458,7 +1461,6 @@ function setPlayerVote(roomCode, playerId, voteId) {
 
     // If everyone has voted, end voting early
     if (game.votes.size === game.players.size - 1) { // -1 for the drawer who doesn't vote
-        clearTimeout(game.votingTimer);
         tallyVotes(roomCode);
     }
 }
@@ -1466,7 +1468,11 @@ function setPlayerVote(roomCode, playerId, voteId) {
 function tallyVotes(roomCode) {
     const game = games.get(roomCode);
     if (!game) return;
-
+    if (game.votingTimer) {
+        clearTimeout(game.votingTimer);
+        game.votingTimer = null;
+    }
+    if (!game.voting) return;
     game.voting = false;
 
     // Count votes for each image
@@ -1547,7 +1553,7 @@ function tallyVotes(roomCode) {
 
     setTimeout(() => {
         nextTurn(roomCode);
-    }, 5000);
+    }, 8000);
 }
 
 function updateGameState(roomCode) {

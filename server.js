@@ -33,15 +33,18 @@ const MODELS = {
         NAME: "FLASH_LITE",
         REQUESTS_PER_MINUTE: 30,
         model: genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" })
+    },
+    GEMINI_2_5_PRO_EXP: {
+        NAME: "GEMINI_2_5_PRO_EXP",
+        REQUESTS_PER_MINUTE: 5,
+        model: genAI.getGenerativeModel({ model: "gemini-2.5-pro-exp-03-25" })
     }
 };
 
 // Track API usage for rate limiting with a rolling window approach
-const modelUsage = {
-    IMAGE_GEN: [],
-    FLASH: [],
-    FLASH_LITE: []
-};
+const modelUsage = Object.fromEntries(
+    Object.keys(MODELS).map(modelName => [modelName, []])
+);
 
 // Track paused models (models that have exceeded their daily quota)
 const pausedModels = new Map(); // modelKey -> unpause timestamp
@@ -75,9 +78,9 @@ setInterval(() => {
     const windowMs = 60 * 1000;
 
     // Clean up model usage timestamps
-    modelUsage.IMAGE_GEN = modelUsage.IMAGE_GEN.filter(t => now - t < windowMs);
-    modelUsage.FLASH = modelUsage.FLASH.filter(t => now - t < windowMs);
-    modelUsage.FLASH_LITE = modelUsage.FLASH_LITE.filter(t => now - t < windowMs);
+    Object.entries(modelUsage).forEach(([modelName, timestamps]) => {
+        modelUsage[modelName] = timestamps.filter(t => now - t < windowMs);
+    });
 }, 60 * 1000);
 
 function useModel(modelName) {
@@ -91,7 +94,8 @@ function useModel(modelName) {
 
 // Get the appropriate text model based on current usage
 function getTextModel() {
-    return useModel(MODELS.FLASH.NAME) || useModel(MODELS.FLASH_LITE.NAME);
+    return useModel(MODELS.GEMINI_2_5_PRO_EXP.NAME) ||
+        useModel(MODELS.FLASH.NAME) || useModel(MODELS.FLASH_LITE.NAME);
 }
 
 function getImageModel() {
@@ -114,7 +118,15 @@ async function requestGeminiResponse(prompt, drawingData = null, textOnly = fals
     if (false) {
         const now = Date.now();
         const windowMs = 60 * 1000;
-        console.log(`Model usage: IMAGE_GEN=${modelUsage.IMAGE_GEN.filter(t => now - t < windowMs).length}/${MODELS.IMAGE_GEN.REQUESTS_PER_MINUTE}, FLASH=${modelUsage.FLASH.filter(t => now - t < windowMs).length}/${MODELS.FLASH.REQUESTS_PER_MINUTE}, FLASH_LITE=${modelUsage.FLASH_LITE.filter(t => now - t < windowMs).length}/${MODELS.FLASH_LITE.REQUESTS_PER_MINUTE}`);
+        const usageInfo = Object.entries(modelUsage)
+        .filter(([modelName]) => MODELS[modelName].REQUESTS_PER_MINUTE > 0)
+        .map(([modelName, timestamps]) => {
+            const currentUsage = timestamps.filter(t => now - t < windowMs).length;
+            const maxRequests = MODELS[modelName].REQUESTS_PER_MINUTE;
+            return `${modelName}=${currentUsage}/${maxRequests}`;
+        })
+        .join(', ');
+        console.log(`Model usage: ${usageInfo}`);
     }
 
     // Prepare the request content based on whether there's drawing data

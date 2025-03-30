@@ -2,12 +2,14 @@ const socket = io();
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+
+// Local game state
+let currentPlayers = [];
+
+// Drawing state
 let isEraser = false;
 let undoStack = [];
 let lastDrawingSent = null;
-
-// Track players to detect joins and leaves
-let currentPlayers = [];
 
 // Variables for rate limiting refreshes
 let lastRoomsRefresh = 0;
@@ -409,6 +411,10 @@ function startGame(roomCode, username, inviteLink) {
     document.body.style.overflow = 'auto';
 }
 
+function isInGame() {
+    return document.getElementById('game').style.display !== 'none';
+}
+
 // Function to add an AI player
 function addAIPlayer() {
     if (aiPlayerCount >= PROMPT_CONFIG.MAX_AI_PLAYERS) return;
@@ -477,6 +483,14 @@ function startDisplayTimer(seconds) {
     }, 1000);
 }
 
+function clearDisplayTimer() {
+    if (currentTimerInterval) {
+        clearInterval(currentTimerInterval);
+        currentTimerInterval = null;
+    }
+    timer.textContent = getTimeString(0);
+}
+
 // Function to copy the room link
 function copyRoomLink() {
     const roomCode = document.getElementById('currentRoom').textContent;
@@ -486,6 +500,8 @@ function copyRoomLink() {
 
 // Function to return to lobby
 function returnToLobby() {
+    clearDisplayTimer();
+
     // Reset game state
     document.getElementById('game').style.display = 'none';
     document.getElementById('lobby').style.display = 'block';
@@ -899,40 +915,40 @@ function handleVotingResults({ message, scores, votes }) {
         // Calculate total votes and determine winners
         let totalVotes = 0;
         let winningPlayerIds = [];
-        
+
         // First pass: calculate total votes
         Object.values(votes).forEach(voteCount => {
             totalVotes += voteCount;
         });
-        
+
         // Minimum threshold for a win - more than 50% of votes
         const winThreshold = totalVotes > 0 ? totalVotes / 2 : 0;
-        
+
         // Second pass: find players who received more than 50% of votes
         Object.entries(votes).forEach(([playerId, voteCount]) => {
             if (voteCount > winThreshold) {
                 winningPlayerIds.push(playerId);
             }
         });
-        
+
         // Delay to allow current user's vote animation to complete
         setTimeout(() => {
             // For each player who received votes
             Object.entries(votes).forEach(([playerId, voteCount]) => {
                 // Skip if vote count is 0
                 if (voteCount === 0) return;
-                
+
                 const container = document.querySelector(`.image-vote-container[data-player-id="${playerId}"]`);
                 if (container) {
                     const voteCounter = container.querySelector('.vote-counter');
                     const animationContainer = container.querySelector('.vote-animation-container');
                     const voteButton = container.querySelector('.vote-button');
-                    
+
                     // Update vote count
                     voteCounter.textContent = voteCount;
                     voteCounter.dataset.votes = voteCount;
                     voteCounter.classList.add('has-votes');
-                    
+
                     // Create multiple flying votes with small delays for a cascade effect
                     for (let i = 0; i < voteCount; i++) {
                         // Create a random start position around the image for incoming votes
@@ -941,13 +957,13 @@ function handleVotingResults({ message, scores, votes }) {
                             createRandomVoteAnimation(voteCounter, animationContainer);
                         }, i * 200); // Stagger animations by 200ms
                     }
-                    
+
                     // If this is a winning player, highlight their vote counter
                     if (winningPlayerIds.includes(playerId)) {
                         // Add a slight delay before highlighting winner to let animations finish
                         setTimeout(() => {
                             voteCounter.classList.add('winner');
-                            
+
                             // Create winning celebration effect
                             celebrateWinner(container);
                         }, voteCount * 220 + 500); // Delay based on the number of vote animations + 500ms buffer
@@ -976,16 +992,16 @@ function celebrateWinner(container) {
     flashEffect.style.pointerEvents = 'none';
     flashEffect.style.transition = 'opacity 0.3s ease-in-out';
     flashEffect.style.zIndex = '3';
-    
+
     container.appendChild(flashEffect);
-    
+
     // Animate the flash
     setTimeout(() => {
         flashEffect.style.opacity = '1';
-        
+
         setTimeout(() => {
             flashEffect.style.opacity = '0';
-            
+
             // Remove the element after animation is complete
             setTimeout(() => {
                 if (container.contains(flashEffect)) {
@@ -1196,17 +1212,23 @@ let disconnectTimeout;
 socket.on('connect', () => {
     console.log('Connected to server');
     clearTimeout(disconnectTimeout);
+
+    if (!isInGame()) {
+        restartRoomRefreshInterval();
+    }
 });
 
 socket.on('disconnect', () => {
     console.log('Disconnected from server');
+
+    clearRoomRefreshInterval();
 
     // If we're in a game and got disconnected, show a message and return to lobby
     addSystemMessage('⚠️ Connection lost. Returning to lobby in 5 seconds...');
 
     // Set a timeout to return to the main menu if reconnection doesn't happen quickly
     disconnectTimeout = setTimeout(() => {
-        if (document.getElementById('game').style.display !== 'none') {
+        if (isInGame()) {
             returnToLobby();
         }
     }, 5000); // 5 seconds timeout before returning to lobby

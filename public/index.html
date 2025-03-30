@@ -53,7 +53,7 @@
     <div id="game" style="display: none;">
         <h1>Imageinary</h1>
         <!-- Prompt button positioned outside of drawing container so it's always visible -->
-        <button type="button" id="viewPromptBtn" class="icon-btn" title="View AI Prompt" onclick="viewRoomPrompt()" style="position: absolute; top: 20px; right: 20px; z-index: 2000;">
+        <button type="button" id="viewPromptBtn" class="icon-btn" title="View AI Prompt" onclick="promptEditor.viewRoomPrompt()" style="position: absolute; top: 20px; right: 20px; z-index: 2000;">
             <span class="icon">🔮</span>
         </button>
         <!-- AI player buttons positioned at top left, only visible for host -->
@@ -160,6 +160,7 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="shared-config.js"></script>
+    <script src="promptEditor.js"></script>
     <script src="client.js"></script>
 </body>
 </html>

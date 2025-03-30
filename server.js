@@ -193,31 +193,45 @@ async function requestGeminiResponse(prompt, drawingData = null, textOnly = fals
         return result;
 
     } catch (error) {
-        console.error(`Gemini API error: ${error.message}`);
-
         // Check for quota exceeded error (429 with specific details)
         if (error.status === 429) {
             const now = Date.now();
-            pausedModels.set(geminiModel.NAME, now + 30 * 1000); // 30 seconds
-            // Check if we hit a daily limit
-            const quotaFailure = error.errorDetails ? error.errorDetails.find(detail => detail['@type'] === 'type.googleapis.com/google.rpc.QuotaFailure') : null;
-            if (quotaFailure && quotaFailure.violations) {
-                const violation = quotaFailure.violations[0];
-                if (violation && violation.quotaMetric === 'generativelanguage.googleapis.com/generate_content_free_tier_requests' &&
-                    violation.quotaId.includes('GenerateRequestsPerDayPerProjectPerModel')) {
-                    // Daily quota exceeded, pause the model for 30 minutes
-                    const pauseDurationMs = 30 * 60 * 1000; // 30 minutes
-                    const unpauseTime = now + pauseDurationMs;
-                    pausedModels.set(geminiModel.NAME, unpauseTime);
+            let retryDelayMs = 30 * 1000; // Default retry delay (30 seconds)
 
-                    console.log(`Model ${geminiModel.NAME} paused for 30 minutes due to daily quota exceeded. Unpause at: ${new Date(unpauseTime).toLocaleTimeString()}`);
+            // Extract relevant error details once
+            const details = error.errorDetails || [];
+            const retryInfo = details.find(detail => detail['@type'] === 'type.googleapis.com/google.rpc.RetryInfo');
+            const quotaFailure = details.find(detail => detail['@type'] === 'type.googleapis.com/google.rpc.QuotaFailure');
 
-                    // Throw a specific error to inform the caller
-                    throw new Error(`Daily quota exceeded for ${geminiModel.NAME}. Model paused for 30 minutes.`);
+            // Handle retry delay if present
+            if (retryInfo?.retryDelay) {
+                const match = retryInfo.retryDelay.match(/^(\d+)(s)$/);
+                if (match) {
+                    retryDelayMs = parseInt(match[1]) * 1000; // Convert seconds to milliseconds
                 }
             }
+
+            // Check for daily quota violation
+            const violation = quotaFailure?.violations?.[0];
+            if (violation?.quotaMetric === 'generativelanguage.googleapis.com/generate_content_free_tier_requests' &&
+                violation?.quotaId.includes('GenerateRequestsPerDayPerProjectPerModel')) {
+                const pauseDurationMs = 30 * 60 * 1000; // 30 minutes
+                const unpauseTime = now + pauseDurationMs;
+                pausedModels.set(geminiModel.NAME, unpauseTime);
+
+                console.log(`Model ${geminiModel.NAME} paused for 30 minutes due to daily quota exceeded. Unpause at: ${new Date(unpauseTime).toLocaleTimeString()}`);
+                throw new Error(`Daily quota exceeded for ${geminiModel.NAME}. Model paused for 30 minutes.`);
+            }
+
+            // Handle per-minute quota exceeded
+            const unpauseTime = now + retryDelayMs;
+            pausedModels.set(geminiModel.NAME, unpauseTime);
+
+            console.log(`Model ${geminiModel.NAME} paused due to quota exceeded. Unpause at: ${new Date(unpauseTime).toLocaleTimeString()}`);
+            throw new Error(`Quota exceeded for ${geminiModel.NAME}. Model paused for ${retryDelayMs / 1000} seconds.`);
         }
 
+        console.error(`Gemini API error: ${error.message}`);
         throw error; // Re-throw other errors for the caller to handle
     }
 }

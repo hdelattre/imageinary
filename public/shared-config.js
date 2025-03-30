@@ -10,8 +10,8 @@ const PROMPT_CONFIG = {
     validatePrompt: (prompt) => {
         // Check if prompt is empty
         if (!prompt) {
-            return { 
-                valid: false, 
+            return {
+                valid: false,
                 prompt: null,
                 error: 'Prompt cannot be empty'
             };
@@ -19,18 +19,18 @@ const PROMPT_CONFIG = {
 
         // Check if prompt includes the {guess} placeholder
         if (!prompt.includes('{guess}')) {
-            return { 
-                valid: false, 
+            return {
+                valid: false,
                 prompt: null,
                 error: 'Missing {guess} placeholder'
             };
         }
- 
+
         // Check if prompt exceeds maximum length
         if (prompt.length > PROMPT_CONFIG.MAX_PROMPT_LENGTH) {
             const trimmed = prompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
-            return { 
-                valid: true, 
+            return {
+                valid: true,
                 prompt: trimmed,
                 warning: `Trimmed to ${PROMPT_CONFIG.MAX_PROMPT_LENGTH} chars`
             };

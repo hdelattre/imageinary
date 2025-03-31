@@ -1386,7 +1386,9 @@ async function generateNewImage(roomCode) {
         // Create array of image generation promises to run in parallel
         const imageGenerationPromises = guessesWithPlayers.map(async (guessData) => {
             try {
-                
+                const guessPlayer = game.players.get(guessData.playerId);
+                const username = guessPlayer.username;
+
                 // Use custom prompt template if available, otherwise use default
                 const promptTemplate = game.customPrompt || PROMPT_CONFIG.DEFAULT_PROMPT;
 
@@ -1422,7 +1424,7 @@ async function generateNewImage(roomCode) {
                 // Return the image data object
                 return {
                     playerId: guessData.playerId,
-                    playerName: game.players.get(guessData.playerId).username,
+                    playerName: username,
                     guess: guessData.guess,
                     imageSrc: `/generated/${filename}`,
                     text: result.text || ''

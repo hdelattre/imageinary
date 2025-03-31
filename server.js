@@ -752,7 +752,13 @@ function startTurn(roomCode) {
 
     game.voting = false;
     game.votes.clear();
-    game.chatHistory = [];
+
+    // Keep a limited chat history
+    const maxOldMessages = 25;
+    if (game.chatHistory.length > maxOldMessages) {
+        game.chatHistory = game.chatHistory.slice(-maxOldMessages);
+    }
+
     game.lastGuesses.clear();
     game.imageSrc = '';
 

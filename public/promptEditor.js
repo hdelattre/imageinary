@@ -1,7 +1,6 @@
 // Prompt Editor Module
 let customPrompt = localStorage.getItem('imageinary_custom_prompt') || PROMPT_CONFIG.DEFAULT_PROMPT;
 let isEditingRoomPrompt = false;
-let editorSocket = null;
 
 // Function to open prompt editor with a specific prompt
 function openPromptEditorWithPrompt(prompt) {
@@ -29,8 +28,8 @@ function closePromptEditor() {
 // Function to save the current prompt (handles both regular and room prompts)
 function savePrompt() {
     // Verify socket is available
-    if (isEditingRoomPrompt && !editorSocket) {
-        console.error('Socket not initialized. Cannot update room prompt.');
+    if (isEditingRoomPrompt && !socket) {
+        console.error('PromptEditor expected socket connection and cannot update room prompt.');
         return false;
     }
 
@@ -57,7 +56,7 @@ function savePrompt() {
     if (isEditingRoomPrompt) {
         const roomCode = document.getElementById('currentRoom').textContent;
         // Send the updated prompt to the server
-        editorSocket.emit('updateRoomPrompt', { roomCode, prompt: newPrompt });
+        socket.emit('updateRoomPrompt', { roomCode, prompt: newPrompt });
 
         // Show success feedback on the view prompt button
         const viewPromptBtn = document.getElementById('viewPromptBtn');
@@ -137,9 +136,29 @@ function resetPrompt() {
     }, 2000);
 }
 
-function initPromptEditor(socket) {
+function initPromptEditor() {
+    if (!socket) {
+        console.log("PromptEditor expected global socket and cannot init");
+        return;
+    }
 
-    setEditorSocket(socket);
+    // Setup socket
+    socket.on('testImageResult', (data) => {
+        if (data.error) {
+            document.getElementById('testImageContainer').innerHTML = `<div class="error">${data.error}</div>`;
+        } else {
+            document.getElementById('testImageContainer').innerHTML = `<img src="${data.imageSrc}" alt="Generated test image" class="test-image">`;
+        }
+    });
+
+    socket.on('roomPrompt', (data) => {
+        console.log('Received room prompt data:', data);
+        if (data.isHost) {
+            openPromptEditorWithPrompt(data.prompt);
+        } else {
+            showPromptModal(data.prompt);
+        }
+    });
 
     // Set initial prompt in the editor (ensure it's within length limit)
     const promptTemplate = document.getElementById('promptTemplate');
@@ -259,7 +278,7 @@ function initPromptEditor(socket) {
 
     document.getElementById('testGenerateBtn').addEventListener('click', () => {
         // Verify socket is available
-        if (!editorSocket) {
+        if (!socket) {
             console.error('Socket not initialized. Cannot generate test image.');
             alert('Connection error. Please try again later.');
             return;
@@ -283,32 +302,11 @@ function initPromptEditor(socket) {
         document.getElementById('testImageContainer').innerHTML = '<div class="loading">Generating image...</div>';
 
         // Send to server for test generation
-        editorSocket.emit('testGenerateImage', {
+        socket.emit('testGenerateImage', {
             drawingData,
             guess,
             promptTemplate: promptToUse
         });
-    });
-}
-
-function setEditorSocket(socket) {
-    editorSocket = socket;
-
-    editorSocket.on('testImageResult', (data) => {
-        if (data.error) {
-            document.getElementById('testImageContainer').innerHTML = `<div class="error">${data.error}</div>`;
-        } else {
-            document.getElementById('testImageContainer').innerHTML = `<img src="${data.imageSrc}" alt="Generated test image" class="test-image">`;
-        }
-    });
-
-    editorSocket.on('roomPrompt', (data) => {
-        console.log('Received room prompt data:', data);
-        if (data.isHost) {
-            openPromptEditorWithPrompt(data.prompt);
-        } else {
-            showPromptModal(data.prompt);
-        }
     });
 }
 
@@ -343,14 +341,14 @@ function setupPromptViewHandlers() {
 
 // Function to view or edit room prompt
 function viewRoomPrompt() {
-    if (!editorSocket) {
+    if (!socket) {
         console.error('Socket not initialized. Cannot get room prompt.');
         return;
     }
 
     const roomCode = document.getElementById('currentRoom').textContent;
     // Get room prompt with host check included
-    editorSocket.emit('getRoomPrompt', roomCode);
+    socket.emit('getRoomPrompt', roomCode);
 }
 
 // Export the public functions
@@ -367,6 +365,5 @@ window.promptEditor = {
     openPromptEditorWithPrompt,
     showPromptModal,
     viewRoomPrompt,
-    setEditorSocket,
     getCustomPrompt: () => customPrompt
 };

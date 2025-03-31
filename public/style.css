@@ -800,19 +800,19 @@ button:active {
         font-size: 22px;
         margin: 0 0 10px 0;
     }
-    
+
     #canvas {
         height: 350px;
     }
-    
+
     .chat-container {
         height: 200px;
     }
-    
+
     #voting-images {
         max-height: 400px;
     }
-    
+
     .vote-image {
         height: 200px;
     }
@@ -823,35 +823,148 @@ button:active {
         font-size: 20px;
         margin: 0 0 5px 0;
     }
-    
+
     #gameInfo {
         margin: 5px 0;
         padding: 5px;
     }
-    
+
     #canvas {
         height: 300px;
     }
-    
+
     .chat-container {
         height: 160px;
     }
-    
+
     #toolbar {
         padding: 6px 8px;
     }
-    
+
     #toolbar button {
         min-width: 50px;
         font-size: 12px;
     }
 }
 
+/* AI Personality Editor Styles */
+.ai-personality-editor {
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.ai-editor-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.ai-selection {
+    margin-bottom: 15px;
+}
+
+.ai-selection select {
+    width: 100%;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+    background-color: #fff;
+}
+
+#aiPersonalityFormContainer {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    background-color: #f9f9f9;
+}
+
+#aiPersonalityFormContainer h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input[type="text"],
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.form-group textarea {
+    min-height: 120px;
+    font-family: monospace;
+}
+
+.form-hint {
+    margin-top: 5px;
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+}
+
+.button-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+/* Notification styles */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    border-radius: 4px;
+    background-color: #333;
+    color: white;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    max-width: 300px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.notification.success {
+    background-color: #4CAF50;
+}
+
+.notification.error {
+    background-color: #f44336;
+}
+
+.notification.info {
+    background-color: #2196F3;
+}
+
+/* Button styling for editor buttons in lobby */
+.editor-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
 @media (max-width: 600px) {
     html, body {
         height: 100%;
     }
-    
+
     #lobby, #game {
         margin: 0;
         border-radius: 0;
@@ -867,22 +980,22 @@ button:active {
         right: 0;
         bottom: 0;
     }
-    
+
     #game {
         padding: 10px;
     }
-    
+
     /* Adjust positioning of header buttons on mobile */
     #viewPromptBtn {
         top: 10px !important;
         right: 10px !important;
     }
-    
+
     .ai-buttons {
         top: 10px !important;
         left: 10px !important;
     }
-    
+
     #canvas {
         width: 100%;
         height: auto;
@@ -891,7 +1004,7 @@ button:active {
         max-width: 100%;
         border-radius: 8px;
     }
-    
+
     #gameInfo {
         padding: 4px 2px;
         background: #2a2a2a;
@@ -957,17 +1070,17 @@ button:active {
     #voting-images {
         grid-template-columns: 1fr;
     }
-    
+
     .lobby-form {
         width: 90%;
         padding: 15px;
     }
-    
+
     .join-row {
         flex-direction: column;
         gap: 8px;
     }
-    
+
     #lobby h1 {
         font-size: 24px;
         margin-top: 10px;
@@ -977,7 +1090,7 @@ button:active {
         font-size: 18px;
         margin: 5px 0;
     }
-    
+
     .input-container {
         margin-top: 0;
         position: relative;
@@ -985,33 +1098,33 @@ button:active {
         width: 100%;
         height: 40px;
     }
-    
+
     #chatInput {
         height: 40px;
         font-size: 16px;  /* Prevents iOS zoom on focus */
     }
-    
+
     /* Fix for iOS Safari bottom toolbar */
     .input-container {
         padding-bottom: env(safe-area-inset-bottom, 0);
     }
-    
+
     /* Prevent rubber band scrolling */
     .drawing-container {
         margin-bottom: 5px;
     }
-    
+
     /* More space for small screens */
     #voting {
         padding: 10px;
         margin-bottom: 10px;
     }
-    
+
     #voting h2 {
         font-size: 18px;
         margin: 5px 0 10px 0;
     }
-    
+
     .drawing-view {
         margin-bottom: 5px;
     }
@@ -1025,7 +1138,7 @@ button:active {
         align-items: center;
         justify-items: center;
     }
-    
+
     .game-info-item {
         padding: 2px 4px;
         border-radius: 3px;
@@ -1037,13 +1150,13 @@ button:active {
         align-items: center;
         justify-content: center;
     }
-    
+
     .room-container {
         max-width: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    
+
     /* Keep original button sizes */
 }
 
@@ -1108,6 +1221,72 @@ button {
 
 .modal-content button:hover {
     background: #2980b9;
+}
+
+/* AI Personality Editor and Selector Styles */
+.modal-content.ai-personality-editor,
+.modal-content.ai-selector {
+    max-width: 700px;
+    width: 90vw;
+}
+
+.ai-editor-container .form-group {
+    margin-bottom: 20px;
+}
+
+.ai-editor-container h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2980b9;
+}
+
+.ai-editor-container textarea {
+    width: 100%;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    margin-bottom: 5px;
+}
+
+.ai-editor-container .form-hint {
+    font-size: 12px;
+    color: #999;
+    margin-top: 2px;
+}
+
+/* AI Personality Selector Styles */
+.ai-personality-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    margin: 15px 0;
+}
+
+.ai-personality-option {
+    padding: 15px;
+    border-radius: 8px;
+    background-color: #2a2a2a;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.ai-personality-option:hover {
+    background-color: #3a3a3a;
+}
+
+.ai-personality-option strong {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 16px;
+}
+
+.ai-personality-option p {
+    margin: 0;
+    color: #b0b0b0;
+    font-size: 14px;
 }
 
 .game-info-item {
@@ -1265,7 +1444,7 @@ button {
     border-radius: 12px; /* Match game container */
     box-shadow: 0 5px 20px rgba(255, 255, 255, 0.1); /* Subtle white shadow */
 }
-  
+
 .editor-section {
     margin-bottom: 25px;
     padding: 15px;

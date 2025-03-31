@@ -44,7 +44,10 @@
             <div class="separator">
                 <span></span>
             </div>
-            <button type="button" id="promptEditorBtn" class="secondary-btn">Customize AI Prompt</button>
+            <div class="editor-buttons">
+                <button type="button" id="promptEditorBtn" class="secondary-btn">Customize AI Prompt</button>
+                <button type="button" id="aiPersonalityEditorBtn" class="secondary-btn">AI Personalities</button>
+            </div>
         </div>
 
 
@@ -156,9 +159,11 @@
         </div>
     </div>
 
+
     <script src="/socket.io/socket.io.js"></script>
     <script src="shared-config.js"></script>
     <script src="promptEditor.js"></script>
+    <script src="aiPersonalityEditor.js"></script>
     <script src="client.js"></script>
     <script src="input.js"></script>
 </body>

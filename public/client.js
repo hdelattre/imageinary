@@ -50,7 +50,9 @@ window.addEventListener('load', () => {
     }
 
     // Initialize the prompt editor functionality
-    promptEditor.initPromptEditor(socket);
+    promptEditor.initPromptEditor();
+    aiPersonalityEditor.initAIPersonalityEditor();
+
 
     // Set up auto-refresh for the rooms list
     restartRoomRefreshInterval();
@@ -420,7 +422,78 @@ function addAIPlayer() {
     if (aiPlayerCount >= PROMPT_CONFIG.MAX_AI_PLAYERS) return;
 
     const roomCode = document.getElementById('currentRoom').textContent;
-    socket.emit('addAIPlayer', roomCode);
+
+    // Check if we have saved personalities
+    const savedPersonalities = aiPersonalityEditor.getSavedPersonalities();
+
+    if (savedPersonalities && savedPersonalities.length > 0) {
+        // Show personality selector
+        showAIPersonalitySelector(savedPersonalities, roomCode);
+    } else {
+        // Just add a default AI player
+        socket.emit('addAIPlayer', roomCode);
+    }
+}
+
+// Function to show AI personality selector modal
+function showAIPersonalitySelector(personalities, roomCode) {
+    // Create a modal
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'flex';
+
+    // Create modal content
+    const modalContent = document.createElement('div');
+    modalContent.className = 'modal-content ai-selector';
+
+    // Add header
+    const header = document.createElement('h2');
+    header.textContent = 'Select AI Personality';
+    modalContent.appendChild(header);
+
+    // Add personality list
+    const list = document.createElement('div');
+    list.className = 'ai-personality-list';
+
+    // Add default option
+    const defaultOption = document.createElement('div');
+    defaultOption.className = 'ai-personality-option';
+    defaultOption.innerHTML = '<strong>Default AI</strong><p>Standard AI player with default personality</p>';
+    defaultOption.addEventListener('click', () => {
+        socket.emit('addAIPlayer', roomCode);
+        document.body.removeChild(modal);
+    });
+    list.appendChild(defaultOption);
+
+    // Add saved personalities
+    personalities.forEach((personality, index) => {
+        const option = document.createElement('div');
+        option.className = 'ai-personality-option';
+        option.innerHTML = `<strong>${personality.name || 'Saved AI ' + (index + 1)}</strong>
+            <p>Custom AI with unique personality</p>`;
+        option.addEventListener('click', () => {
+            socket.emit('addAIPlayer', {
+                roomCode: roomCode,
+                personality: personality
+            });
+            document.body.removeChild(modal);
+        });
+        list.appendChild(option);
+    });
+
+    modalContent.appendChild(list);
+
+    // Add close button
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'close-btn';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.addEventListener('click', () => {
+        document.body.removeChild(modal);
+    });
+    modalContent.appendChild(closeBtn);
+
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
 }
 
 // Function to remove an AI player by ID

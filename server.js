@@ -53,6 +53,7 @@ const AI_LAST_CHANCE_TIME = 10000; // 10 seconds left
 const AI_DRAWING_TIME = 3000; // 3 seconds to create drawing
 const AI_CHAT_PROBABILITY = 0.4; // 40% chance of sending a chat message instead of a guess
 const AI_CHAT_PROMPT = "You're playing a drawing game with friends. Look at this drawing and the chat history, then send a single casual, funny message as if you're a player. Don't guess what the drawing is. Instead, comment on the drawing process, react to other messages, or make a light joke. But surprising and sometimes controversial. Respond with your only chat message and nothing else."
+const AI_GUESS_PROMPT = PROMPT_CONFIG.GUESS_PROMPT;
 
 const roundDuration = 45;
 
@@ -71,7 +72,17 @@ io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
 
     // Add an AI player to the room
-    socket.on('addAIPlayer', (roomCode) => {
+    socket.on('addAIPlayer', (data) => {
+        // Handle both string roomCode and object with personality
+        let roomCode, personality;
+        if (typeof data === 'string') {
+            roomCode = data;
+            personality = null;
+        } else {
+            roomCode = data.roomCode;
+            personality = data.personality;
+        }
+
         const game = games.get(roomCode);
 
         // Check if the room exists and the requester is the host
@@ -91,8 +102,18 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // Create a new AI player
-        const aiPlayerId = createAIPlayer(roomCode);
+        // Create AI player with personality if provided
+        let aiPlayerId;
+        if (personality) {
+            aiPlayerId = createAIPlayer(
+                roomCode,
+                personality.name,
+                personality.chatPrompt,
+                personality.guessPrompt
+            );
+        } else {
+            aiPlayerId = createAIPlayer(roomCode);
+        }
 
         if (aiPlayerId) {
             // Update game state for all players
@@ -418,6 +439,124 @@ io.on('connection', (socket) => {
         setPlayerVote(roomCode, socket.id, imagePlayerId);
     });
 
+    // AI Personality Editor endpoints
+    socket.on('getAIPlayers', (roomCode) => {
+        const game = games.get(roomCode);
+        if (!game) {
+            socket.emit('error', 'Room not found');
+            return;
+        }
+
+        // Check if the requester is the host
+        if (!isSocketRoomHost(game, socket.id)) {
+            socket.emit('error', 'Only the host can manage AI players');
+            return;
+        }
+
+        // Create a list of AI players with their data
+        const aiPlayersList = [];
+        game.aiPlayers.forEach((aiData, aiPlayerId) => {
+            const playerData = game.players.get(aiPlayerId);
+            if (playerData) {
+                aiPlayersList.push({
+                    id: aiPlayerId,
+                    username: playerData.username,
+                    color: playerData.color,
+                    chatPrompt: aiData.chatPrompt || AI_CHAT_PROMPT,
+                    guessPrompt: aiData.guessPrompt || AI_GUESS_PROMPT
+                });
+            }
+        });
+
+        // Send the list to the client
+        socket.emit('aiPlayersList', { aiPlayers: aiPlayersList });
+    });
+
+    // Update AI player personality
+    socket.on('updateAIPlayer', ({ roomCode, aiPlayerId, chatPrompt, guessPrompt }) => {
+        const game = games.get(roomCode);
+        if (!game) {
+            socket.emit('aiPlayerUpdated', { success: false, error: 'Room not found' });
+            return;
+        }
+
+        // Check if the requester is the host
+        if (!isSocketRoomHost(game, socket.id)) {
+            socket.emit('aiPlayerUpdated', { success: false, error: 'Only the host can update AI players' });
+            return;
+        }
+
+        // Check if the AI player exists
+        if (!game.aiPlayers.has(aiPlayerId)) {
+            socket.emit('aiPlayerUpdated', { success: false, error: 'AI player not found' });
+            return;
+        }
+
+        // Update the AI player's prompts
+        const aiData = game.aiPlayers.get(aiPlayerId);
+        aiData.chatPrompt = chatPrompt || AI_CHAT_PROMPT;
+        aiData.guessPrompt = guessPrompt || AI_GUESS_PROMPT;
+
+        console.log(`Room ${roomCode}| AI player ${aiPlayerId} personality updated`);
+
+        // Send success response
+        socket.emit('aiPlayerUpdated', { success: true });
+    });
+
+    // Create new AI player with custom personality
+    socket.on('createAIPlayer', ({ roomCode, name, chatPrompt, guessPrompt }) => {
+        const game = games.get(roomCode);
+        if (!game) {
+            socket.emit('aiPlayerCreated', { success: false, error: 'Room not found' });
+            return;
+        }
+
+        // Check if the requester is the host
+        if (!isSocketRoomHost(game, socket.id)) {
+            socket.emit('aiPlayerCreated', { success: false, error: 'Only the host can create AI players' });
+            return;
+        }
+
+        // Check AI player limit using shared configuration
+        if (game.aiPlayers.size >= PROMPT_CONFIG.MAX_AI_PLAYERS) {
+            socket.emit('aiPlayerCreated', {
+                success: false,
+                error: `Maximum of ${PROMPT_CONFIG.MAX_AI_PLAYERS} AI players allowed per room`
+            });
+            return;
+        }
+
+        try {
+            // Sanitize the name
+            const sanitizedName = sanitizeMessage(name, '', 20);
+
+            // Create the AI player with custom properties
+            const aiPlayerId = createAIPlayer(roomCode, sanitizedName, chatPrompt, guessPrompt);
+
+            if (aiPlayerId) {
+                // Update game state for all players
+                updateGameState(roomCode);
+
+                // Update public rooms list if this is a public room
+                if (game.isPublic) {
+                    updatePublicRoomsList(roomCode);
+                }
+
+                // Send success response
+                socket.emit('aiPlayerCreated', {
+                    success: true,
+                    aiPlayerId,
+                    name: game.players.get(aiPlayerId).username
+                });
+            } else {
+                socket.emit('aiPlayerCreated', { success: false, error: 'Failed to create AI player' });
+            }
+        } catch (error) {
+            console.error(`Error creating AI player: ${error.message}`);
+            socket.emit('aiPlayerCreated', { success: false, error: 'Internal server error' });
+        }
+    });
+
     socket.on('disconnect', () => {
         // Clean up player from games
         games.forEach((game, roomCode) => {
@@ -659,16 +798,21 @@ function reorderPlayers(game) {
 }
 
 // Create an AI player
-function createAIPlayer(roomCode) {
+function createAIPlayer(roomCode, customName = null, chatPrompt = null, guessPrompt = null) {
     const game = games.get(roomCode);
     if (!game) return null;
 
     // Generate a unique AI player ID
     const aiPlayerId = `ai-${uuidv4()}`;
 
-    // Select a random AI name
-    const nameIndex = Math.floor(Math.random() * AI_NAMES.length);
-    const aiName = `${AI_PLAYER_PREFIX}${AI_NAMES[nameIndex]}`;
+    // Use custom name if provided, otherwise select random name
+    let aiName;
+    if (customName) {
+        aiName = `${AI_PLAYER_PREFIX}${customName}`;
+    } else {
+        const nameIndex = Math.floor(Math.random() * AI_NAMES.length);
+        aiName = `${AI_PLAYER_PREFIX}${AI_NAMES[nameIndex]}`;
+    }
 
     // Select a random color
     const colorIndex = Math.floor(Math.random() * AI_PLAYER_COLORS.length);
@@ -698,10 +842,13 @@ function createAIPlayer(roomCode) {
         guessTimer: null,
         drawingTimer: null,
         lastChatTime: 0,
-        chatTimer: null
+        chatTimer: null,
+        // Store custom prompts if provided, otherwise use defaults
+        chatPrompt: chatPrompt || AI_CHAT_PROMPT,
+        guessPrompt: guessPrompt || AI_GUESS_PROMPT
     });
 
-    console.log(`Room ${roomCode}| AI player ${uniqueAiName} (${aiPlayerId}) added`);
+    console.log(`Room ${roomCode}| AI player ${uniqueAiName} (${aiPlayerId}) added${customName ? ' with custom name' : ''}${chatPrompt ? ' and custom chat prompt' : ''}${guessPrompt ? ' and custom guess prompt' : ''}`);
 
     return aiPlayerId;
 }
@@ -953,8 +1100,11 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
         // Only make a guess if there's actual drawing data
         if (!drawingData) return;
 
+        // Use the AI's custom guess prompt if available, otherwise use default
+        const guessPrompt = aiData.guessPrompt || AI_GUESS_PROMPT;
+
         // Use textOnly=true to utilize the faster model for guesses
-        const result = await geminiService.requestGeminiResponse(PROMPT_CONFIG.GUESS_PROMPT, drawingData, true);
+        const result = await geminiService.requestGeminiResponse(guessPrompt, drawingData, true);
 
         let guess = result.text.trim();
 
@@ -995,8 +1145,11 @@ async function makeAIChat(roomCode, aiPlayerId, drawingData) {
             `${msg.username}: ${msg.message}`
         ).join('\n');
 
+        // Use the AI's custom chat prompt if available, otherwise use default
+        const chatPrompt = aiData.chatPrompt || AI_CHAT_PROMPT;
+
         // Set up the chat prompt with context
-        const prompt = `${AI_CHAT_PROMPT}\n\nRecent chat:\n${recentChatHistory}`;
+        const prompt = `${chatPrompt}\n\nRecent chat:\n${recentChatHistory}`;
         const textOnly = true;
 
         const result = await geminiService.requestGeminiResponse(prompt, drawingData, textOnly);

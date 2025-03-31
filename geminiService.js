@@ -183,7 +183,8 @@ async function requestGeminiResponse(prompt, drawingData = null, textOnly = fals
 
     try {
         // Make the request to Gemini
-        const response = await geminiModel.model.generateContent(content);
+        const generationConfig = { max_output_tokens: 500, temperature: 1.4 };
+        const response = await geminiModel.model.generateContent(content, config=generationConfig);
 
         if (response.response.candidates.length === 0) {
             throw new Error('No candidates returned by the model');

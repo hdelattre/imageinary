@@ -739,8 +739,7 @@ function startNewTurn({ drawer, drawerId, round }) {
     undoStack = [];
     lastDrawingSent = null;
 
-    // Reset UI
-    document.getElementById('chat').innerHTML = '';
+    // Only reset the voting area and prompt, keep the chat history
     document.getElementById('voting').style.display = 'none';
     document.getElementById('prompt').style.display = 'none';
 

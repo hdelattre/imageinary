@@ -356,6 +356,26 @@ io.on('connection', (socket) => {
             if (currentDrawing) {
                 socket.emit('drawingUpdate', currentDrawing);
             }
+            
+            // Send chat history to the new player
+            game.chatHistory.forEach(msg => {
+                if (msg.playerId) {
+                    // Regular player message
+                    socket.emit('newMessage', {
+                        username: msg.username,
+                        message: msg.message,
+                        timestamp: msg.timestamp,
+                        color: msg.color,
+                        isGuess: msg.isGuess
+                    });
+                } else {
+                    // System message
+                    socket.emit('systemMessage', {
+                        message: msg.message,
+                        timestamp: msg.timestamp
+                    });
+                }
+            });
 
             // Sync the timer for the new player
             if (game.timerEnd > Date.now()) {
@@ -668,10 +688,18 @@ function sanitizeMessage(message, allowedPunctuation = '', maxLength = null) {
 
 function sendSystemMessage(roomCode, message) {
     const timestamp = new Date().toLocaleTimeString();
-    io.to(roomCode).emit('systemMessage', {
+    const systemMessage = {
         message: message,
         timestamp
-    });
+    };
+    
+    // Store system message in chat history
+    const game = games.get(roomCode);
+    if (game) {
+        game.chatHistory.push(systemMessage);
+    }
+    
+    io.to(roomCode).emit('systemMessage', systemMessage);
 }
 
 function sendPlayerMessage(roomCode, playerId, message, isGuess) {
@@ -900,7 +928,7 @@ function startTurn(roomCode) {
     game.voting = false;
     game.votes.clear();
 
-    // Keep a limited chat history
+    // Keep the existing chat history (but limit it to 25 messages)
     const maxOldMessages = 25;
     if (game.chatHistory.length > maxOldMessages) {
         game.chatHistory = game.chatHistory.slice(-maxOldMessages);
@@ -1358,6 +1386,7 @@ async function generateNewImage(roomCode) {
         // Create array of image generation promises to run in parallel
         const imageGenerationPromises = guessesWithPlayers.map(async (guessData) => {
             try {
+                
                 // Use custom prompt template if available, otherwise use default
                 const promptTemplate = game.customPrompt || PROMPT_CONFIG.DEFAULT_PROMPT;
 

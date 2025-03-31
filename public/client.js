@@ -437,9 +437,17 @@ function addAIPlayer() {
 
 // Function to show AI personality selector modal
 function showAIPersonalitySelector(personalities, roomCode) {
+    // Check if a modal is already open - prevent multiple modals
+    const existingModal = document.getElementById('aiPersonalityModal');
+    if (existingModal) {
+        // If there's already a modal open, just return without creating a new one
+        return;
+    }
+    
     // Create a modal
     const modal = document.createElement('div');
     modal.className = 'modal';
+    modal.id = 'aiPersonalityModal';
     modal.style.display = 'flex';
 
     // Create modal content
@@ -461,7 +469,7 @@ function showAIPersonalitySelector(personalities, roomCode) {
     defaultOption.innerHTML = '<strong>Default AI</strong><p>Standard AI player with default personality</p>';
     defaultOption.addEventListener('click', () => {
         socket.emit('addAIPlayer', roomCode);
-        document.body.removeChild(modal);
+        removeAIPersonalityModal();
     });
     list.appendChild(defaultOption);
 
@@ -476,7 +484,7 @@ function showAIPersonalitySelector(personalities, roomCode) {
                 roomCode: roomCode,
                 personality: personality
             });
-            document.body.removeChild(modal);
+            removeAIPersonalityModal();
         });
         list.appendChild(option);
     });
@@ -488,12 +496,20 @@ function showAIPersonalitySelector(personalities, roomCode) {
     closeBtn.className = 'close-btn';
     closeBtn.innerHTML = '&times;';
     closeBtn.addEventListener('click', () => {
-        document.body.removeChild(modal);
+        removeAIPersonalityModal();
     });
     modalContent.appendChild(closeBtn);
 
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
+}
+
+// Helper function to safely remove the AI personality modal
+function removeAIPersonalityModal() {
+    const modal = document.getElementById('aiPersonalityModal');
+    if (modal && modal.parentNode) {
+        modal.parentNode.removeChild(modal);
+    }
 }
 
 // Function to remove an AI player by ID

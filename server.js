@@ -395,10 +395,20 @@ io.on('connection', (socket) => {
 
         let displayMessage = message;
         // Check if this is a guess command (/g)
-        const isGuess = message.startsWith('/g ');
+        const isGuess = message.startsWith('/g');
         if (isGuess) {
-            // Remove the /g prefix for display
-            displayMessage = message.substring(3).trim();
+            // Find the first whitespace and remove everything up to and including it
+            const firstSpaceIndex = message.indexOf(' ');
+            if (firstSpaceIndex !== -1) {
+                displayMessage = message.substring(firstSpaceIndex + 1).trim();
+            } else {
+                // No guess to send
+                return;
+            }
+        }
+        else if (message.startsWith('/')) {
+            // Ignore invalid command
+            return;
         }
 
         sendPlayerMessage(roomCode, socket.id, displayMessage, isGuess);

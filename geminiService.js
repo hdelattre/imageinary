@@ -253,15 +253,19 @@ async function requestGeminiResponse(prompt, drawingData = null, textOnly = fals
                 pausedModels.set(geminiModel.NAME, unpauseTime);
 
                 console.log(`Model ${geminiModel.NAME} paused for 30 minutes due to daily quota exceeded. Unpause at: ${new Date(unpauseTime).toLocaleTimeString()}`);
-                throw new Error(`Daily quota exceeded for ${geminiModel.NAME}. Model paused for 30 minutes.`);
+
+                // Try again with a different model
+                return requestGeminiResponse(prompt, drawingData, textOnly);
             }
 
-            // Handle per-minute quota exceeded
+            // Handle per-minute/other quota exceeded
             const unpauseTime = now + retryDelayMs;
             pausedModels.set(geminiModel.NAME, unpauseTime);
 
             console.log(`Model ${geminiModel.NAME} paused due to quota exceeded. Unpause at: ${new Date(unpauseTime).toLocaleTimeString()}`);
-            throw new Error(`Quota exceeded for ${geminiModel.NAME}. Model paused for ${retryDelayMs / 1000} seconds.`);
+
+            // Try again with a different model
+            return requestGeminiResponse(prompt, drawingData, textOnly);
         }
 
         console.error(`Gemini API error: ${error.message}`);

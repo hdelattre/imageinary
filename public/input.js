@@ -23,8 +23,8 @@ function getScaledCoordinates(e, canvas) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
-    const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+    const clientX = e.clientX || e.touches[0].clientX;
+    const clientY = e.clientY || e.touches[0].clientY;
     return {
         x: (clientX - rect.left) * scaleX,
         y: (clientY - rect.top) * scaleY
@@ -144,7 +144,7 @@ function handleTouchStart(e) {
     const touch = e.touches[0];
     activeTouchId = touch.identifier;
 
-    const { x, y } = getScaledCoordinates({ ...e, touches: [touch] }, canvas);
+    const { x, y } = getScaledCoordinates(e, canvas);
     startDrawPath(x, y);
 }
 
@@ -156,7 +156,7 @@ function handleTouchMove(e) {
     const touch = Array.from(e.touches).find(t => t.identifier === activeTouchId);
     if (!touch) return;
 
-    const { x, y } = getScaledCoordinates({ ...e, touches: [touch] }, canvas);
+    const { x, y } = getScaledCoordinates(e, canvas);
     addToDrawPath(x, y);
 }
 

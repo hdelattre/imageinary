@@ -1749,8 +1749,9 @@ function cleanupOldImages() {
     });
 }
 
-// Run the cleanup every hour
-setInterval(cleanupOldImages, 60 * 60 * 1000);
+// Run the cleanup at intervals (default 12 hours)
+const IMAGE_CLEANUP_INTERVAL = (process.env.IMAGEINARY_IMAGE_CLEAN_INTERVAL || (12 * 60)) * 60 * 1000;
+setInterval(cleanupOldImages, IMAGE_CLEANUP_INTERVAL);
 // Run the rooms cleanup every 15 seconds
 setInterval(cleanupRooms, 15 * 1000);
 

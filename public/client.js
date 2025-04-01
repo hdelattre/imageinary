@@ -471,6 +471,53 @@ function addSystemMessage(message, className = 'system-message') {
     messageDiv.textContent = message;
     chatDiv.appendChild(messageDiv);
     chatDiv.scrollTop = chatDiv.scrollHeight;
+
+    limitChatMessages();
+}
+
+function addPlayerMessage({ username, message, timestamp, color, isGuess }) {
+    const chatDiv = document.getElementById('chat');
+    const messageDiv = document.createElement('div');
+
+    // Add guess class if this is a guess message
+    if (isGuess) {
+        messageDiv.classList.add('guess-message');
+    }
+
+    const usernameSpan = document.createElement('span');
+    usernameSpan.style.color = color;
+    usernameSpan.textContent = `${username}: `;
+
+    const messageText = document.createTextNode(message);
+
+    // Add both elements to the message div
+    messageDiv.appendChild(usernameSpan);
+    messageDiv.appendChild(messageText);
+
+    chatDiv.appendChild(messageDiv);
+    chatDiv.scrollTop = chatDiv.scrollHeight; // Auto-scroll to bottom
+
+    limitChatMessages();
+}
+
+function limitChatMessages(maxMessages = 100) {
+    const chatDiv = document.getElementById('chat');
+    if (!chatDiv) return; // Early return if element not found
+
+    const messages = Array.from(chatDiv.children); // Convert to static array
+    const excessCount = messages.length - maxMessages;
+
+    if (excessCount > 0) {
+        // Remove multiple nodes at once using a range
+        const range = document.createRange();
+        range.setStartBefore(messages[0]);
+        range.setEndAfter(messages[excessCount - 1]);
+        range.deleteContents();
+    }
+}
+
+function clearChat() {
+    document.getElementById('chat').innerHTML = '';
 }
 
 // Helper function to format time with the clock emoji
@@ -525,13 +572,13 @@ function copyRoomLink() {
 // Function to return to lobby
 function returnToLobby() {
     clearDisplayTimer();
+    clearChat();
 
     // Reset game state
     document.getElementById('game').style.display = 'none';
     document.getElementById('lobby').style.display = 'block';
 
     // Clear the game elements
-    document.getElementById('chat').innerHTML = '';
     document.getElementById('players').innerHTML = '';
     document.getElementById('currentRoom').textContent = '';
     document.getElementById('drawer').textContent = '';
@@ -714,6 +761,8 @@ function startNewTurn({ drawer, drawerId, round }) {
     isEraser = false;
     document.getElementById('colorPicker').disabled = false;
     document.getElementById('eraserBtn').classList.remove('eraser-active');
+
+    limitChatMessages(30);
 
     // Add system message about new turn
     addSystemMessage(`Round ${round}: ${drawer} is now drawing!`);
@@ -1139,29 +1188,6 @@ function createRandomVoteAnimation(targetElement, container, voterName, voterCol
     }, 1000);
 }
 
-function displayNewMessage({ username, message, timestamp, color, isGuess }) {
-    const chatDiv = document.getElementById('chat');
-    const messageDiv = document.createElement('div');
-
-    // Add guess class if this is a guess message
-    if (isGuess) {
-        messageDiv.classList.add('guess-message');
-    }
-
-    const usernameSpan = document.createElement('span');
-    usernameSpan.style.color = color;
-    usernameSpan.textContent = `${username}: `;
-
-    const messageText = document.createTextNode(message);
-
-    // Add both elements to the message div
-    messageDiv.appendChild(usernameSpan);
-    messageDiv.appendChild(messageText);
-
-    chatDiv.appendChild(messageDiv);
-    chatDiv.scrollTop = chatDiv.scrollHeight; // Auto-scroll to bottom
-}
-
 // Event listeners
 document.getElementById('chatInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
@@ -1213,7 +1239,7 @@ socket.on('drawingUpdate', (drawingData) => {
 });
 
 socket.on('newMessage', (messageData) => {
-    displayNewMessage(messageData);
+    addPlayerMessage(messageData);
 });
 
 socket.on('systemMessage', ({ message, timestamp }) => {

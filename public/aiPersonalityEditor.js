@@ -132,6 +132,30 @@ function createEditorUI() {
 
     createNewForm.appendChild(nameGroup);
 
+    // Core personality prompt group
+    const coreGroup = document.createElement('div');
+    coreGroup.className = 'form-group';
+
+    const coreLabel = document.createElement('label');
+    coreLabel.setAttribute('for', 'newAICorePrompt');
+    coreLabel.textContent = 'Core Personality:';
+    coreGroup.appendChild(coreLabel);
+
+    const coreTextarea = document.createElement('textarea');
+    coreTextarea.id = 'newAICorePrompt';
+    coreTextarea.rows = 2;
+    coreTextarea.placeholder = 'Enter core personality description';
+    // Default core personality
+    coreTextarea.value = PROMPT_CONFIG.CORE_PERSONALITY_PROMPT;
+    coreGroup.appendChild(coreTextarea);
+
+    const coreHint = document.createElement('p');
+    coreHint.className = 'form-hint';
+    coreHint.textContent = 'This defines the AI\'s character traits across all actions';
+    coreGroup.appendChild(coreHint);
+
+    createNewForm.appendChild(coreGroup);
+
     // Chat prompt group
     const chatGroup = document.createElement('div');
     chatGroup.className = 'form-group';
@@ -198,6 +222,28 @@ function createEditorUI() {
     const existingHeader = document.createElement('h4');
     existingHeader.innerHTML = 'Edit AI Player: <span id="aiPlayerName"></span>';
     existingForm.appendChild(existingHeader);
+
+    // Core personality prompt group
+    const existingCoreGroup = document.createElement('div');
+    existingCoreGroup.className = 'form-group';
+
+    const existingCoreLabel = document.createElement('label');
+    existingCoreLabel.setAttribute('for', 'aiCorePrompt');
+    existingCoreLabel.textContent = 'Core Personality:';
+    existingCoreGroup.appendChild(existingCoreLabel);
+
+    const existingCoreTextarea = document.createElement('textarea');
+    existingCoreTextarea.id = 'aiCorePrompt';
+    existingCoreTextarea.rows = 2;
+    existingCoreTextarea.placeholder = 'Enter core personality description';
+    existingCoreGroup.appendChild(existingCoreTextarea);
+
+    const existingCoreHint = document.createElement('p');
+    existingCoreHint.className = 'form-hint';
+    existingCoreHint.textContent = 'This defines the AI\'s character traits across all actions';
+    existingCoreGroup.appendChild(existingCoreHint);
+
+    existingForm.appendChild(existingCoreGroup);
 
     // Chat prompt group
     const existingChatGroup = document.createElement('div');
@@ -451,10 +497,11 @@ function showExistingAIForm(aiPlayerId) {
     const createNewForm = document.getElementById('createNewAIForm');
     const existingAIForm = document.getElementById('existingAIForm');
     const aiPlayerName = document.getElementById('aiPlayerName');
+    const aiCorePrompt = document.getElementById('aiCorePrompt');
     const aiChatPrompt = document.getElementById('aiChatPrompt');
     const aiGuessPrompt = document.getElementById('aiGuessPrompt');
 
-    if (!formContainer || !createNewForm || !existingAIForm || !aiPlayerName || !aiChatPrompt || !aiGuessPrompt) return;
+    if (!formContainer || !createNewForm || !existingAIForm || !aiPlayerName || !aiCorePrompt || !aiChatPrompt || !aiGuessPrompt) return;
 
     // Show existing AI form
     createNewForm.style.display = 'none';
@@ -468,6 +515,7 @@ function showExistingAIForm(aiPlayerId) {
         aiPlayerName.textContent = aiPlayer.username || 'AI Player';
     }
 
+    aiCorePrompt.value = aiPlayer.corePersonalityPrompt || PROMPT_CONFIG.CORE_PERSONALITY_PROMPT;
     aiChatPrompt.value = aiPlayer.chatPrompt || PROMPT_CONFIG.CHAT_PROMPT;
     aiGuessPrompt.value = aiPlayer.guessPrompt || PROMPT_CONFIG.GUESS_PROMPT;
 }
@@ -487,9 +535,13 @@ function saveLocalAIPersonality() {
             return;
         }
 
+        // Get core personality from the form
+        const newAICorePrompt = document.getElementById('newAICorePrompt').value.trim();
+        
         // Create new local personality
         const newPersonality = {
             name: newAIName,
+            corePersonalityPrompt: newAICorePrompt,
             chatPrompt: newAIChatPrompt,
             guessPrompt: newAIGuessPrompt
         };
@@ -505,10 +557,13 @@ function saveLocalAIPersonality() {
         // Updating existing saved personality
         const index = parseInt(selectedAI.replace('saved-', ''));
         if (index >= 0 && index < savedPersonalities.length) {
+            const aiCorePrompt = document.getElementById('aiCorePrompt').value.trim();
             const aiChatPrompt = document.getElementById('aiChatPrompt').value.trim();
             const aiGuessPrompt = document.getElementById('aiGuessPrompt').value.trim();
 
             // Update the saved personality
+            // Ensure corePersonalityPrompt exists on older saved personalities
+            savedPersonalities[index].corePersonalityPrompt = aiCorePrompt || "a witty and sarcastic AI who loves to make clever remarks";
             savedPersonalities[index].chatPrompt = aiChatPrompt;
             savedPersonalities[index].guessPrompt = aiGuessPrompt;
             savePersonalitiesToStorage();
@@ -534,6 +589,7 @@ function saveAIPersonality() {
     if (selectedAI === 'create_new') {
         // Creating a new AI player in game
         const newAIName = document.getElementById('newAIName').value.trim();
+        const newAICorePrompt = document.getElementById('newAICorePrompt').value.trim();
         const newAIChatPrompt = document.getElementById('newAIChatPrompt').value.trim();
         const newAIGuessPrompt = document.getElementById('newAIGuessPrompt').value.trim();
 
@@ -546,6 +602,7 @@ function saveAIPersonality() {
         socket.emit('createAIPlayer', {
             roomCode,
             name: newAIName,
+            corePersonalityPrompt: newAICorePrompt,
             chatPrompt: newAIChatPrompt,
             guessPrompt: newAIGuessPrompt
         });
@@ -555,10 +612,13 @@ function saveAIPersonality() {
         const aiChatPrompt = document.getElementById('aiChatPrompt').value.trim();
         const aiGuessPrompt = document.getElementById('aiGuessPrompt').value.trim();
 
+        const aiCorePrompt = document.getElementById('aiCorePrompt').value.trim();
+        
         // Send request to update AI personality
         socket.emit('updateAIPlayer', {
             roomCode,
             aiPlayerId: selectedAI,
+            corePersonalityPrompt: aiCorePrompt,
             chatPrompt: aiChatPrompt,
             guessPrompt: aiGuessPrompt
         });

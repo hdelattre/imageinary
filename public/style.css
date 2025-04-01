@@ -1190,6 +1190,7 @@ button {
     text-align: center;
     box-shadow: 0 4px 8px rgba(255, 255, 255, 0.2);
     color: #e0e0e0;
+    position: relative;
 }
 
 .modal-content h2 {
@@ -1279,6 +1280,7 @@ button {
 .modal-content.ai-selector.compact {
     max-width: 400px;
     padding: 15px;
+    position: relative;
 }
 
 .ai-personality-list-container {
@@ -1489,6 +1491,7 @@ button {
     color: #e0e0e0; /* Light text */
     border-radius: 12px; /* Match game container */
     box-shadow: 0 5px 20px rgba(255, 255, 255, 0.1); /* Subtle white shadow */
+    position: relative;
 }
 
 .editor-section {
@@ -1577,6 +1580,7 @@ button {
     border: none;
     cursor: pointer;
     color: #e0e0e0; /* Light text */
+    z-index: 5;
 }
 
 .close-btn:hover {

@@ -146,7 +146,7 @@ function createEditorUI() {
     chatTextarea.rows = 5;
     chatTextarea.placeholder = 'Enter chat prompt for AI personality';
     // Default chat prompt
-    chatTextarea.value = "You're playing a drawing game with friends. Look at this drawing and the chat history, then send a single casual, funny message as if you're a player. Don't guess what the drawing is. Instead, comment on the drawing process, react to other messages, or make a light joke. But surprising and sometimes controversial. Respond with your only chat message and nothing else.";
+    chatTextarea.value = PROMPT_CONFIG.CHAT_PROMPT;
     chatGroup.appendChild(chatTextarea);
 
     const chatHint = document.createElement('p');
@@ -170,7 +170,7 @@ function createEditorUI() {
     guessTextarea.rows = 5;
     guessTextarea.placeholder = 'Enter guess prompt for AI personality';
     // Default guess prompt
-    guessTextarea.value = "You are playing Pictionary. Look at this drawing and make a fun creative guess of what it represents. Your guess will be remixed with the drawing by an AI, so you should avoid obvious answers and guess something whacky and interesting that will result in something fun and surprising. Your guess can be a word or phrase. If the drawing seems incomplete or unclear, make your best guess anyway. Respond with just your guess.";
+    guessTextarea.value = PROMPT_CONFIG.GUESS_PROMPT;
     guessGroup.appendChild(guessTextarea);
 
     const guessHint = document.createElement('p');
@@ -461,10 +461,6 @@ function showExistingAIForm(aiPlayerId) {
     existingAIForm.style.display = 'block';
     formContainer.style.display = 'block';
 
-    // Default prompts
-    const defaultChatPrompt = "You're playing a drawing game with friends. Look at this drawing and the chat history, then send a single casual, funny message as if you're a player. Don't guess what the drawing is. Instead, comment on the drawing process, react to other messages, or make a light joke. But surprising and sometimes controversial. Respond with your only chat message and nothing else.";
-    const defaultGuessPrompt = "You are playing Pictionary. Look at this drawing and make a fun creative guess of what it represents. Your guess will be remixed with the drawing by an AI, so you should avoid obvious answers and guess something whacky and interesting that will result in something fun and surprising. Your guess can be a word or phrase. If the drawing seems incomplete or unclear, make your best guess anyway. Respond with just your guess.";
-
     // Fill in the form with AI player data
     if (aiPlayerId.startsWith('saved-')) {
         aiPlayerName.textContent = aiPlayer.name || `Saved AI ${aiPlayerId.replace('saved-', '')}`;
@@ -472,8 +468,8 @@ function showExistingAIForm(aiPlayerId) {
         aiPlayerName.textContent = aiPlayer.username || 'AI Player';
     }
 
-    aiChatPrompt.value = aiPlayer.chatPrompt || defaultChatPrompt;
-    aiGuessPrompt.value = aiPlayer.guessPrompt || defaultGuessPrompt;
+    aiChatPrompt.value = aiPlayer.chatPrompt || PROMPT_CONFIG.CHAT_PROMPT;
+    aiGuessPrompt.value = aiPlayer.guessPrompt || PROMPT_CONFIG.GUESS_PROMPT;
 }
 
 // Save AI personality locally
@@ -598,10 +594,10 @@ function getSavedPersonalities() {
 
 // Create AI personality selector modal for choosing AI to add
 function createAIPersonalitySelector(personalities, roomCode, onSelected) {
-    
+
     // Check if modal already exists
     let modal = document.getElementById('aiPersonalityModal');
-    
+
     if (modal) {
         // If it exists, just make it visible and update its content
         modal.innerHTML = ''; // Clear existing content
@@ -627,7 +623,7 @@ function createAIPersonalitySelector(personalities, roomCode, onSelected) {
     // Add personality list container with scrolling
     const listContainer = document.createElement('div');
     listContainer.className = 'ai-personality-list-container';
-    
+
     // Add personality list
     const list = document.createElement('div');
     list.className = 'ai-personality-list';
@@ -654,24 +650,24 @@ function createAIPersonalitySelector(personalities, roomCode, onSelected) {
     personalities.forEach((personality, index) => {
         const option = document.createElement('div');
         option.className = 'ai-personality-option';
-        
+
         // Get a brief description from the personality prompt
         let description = "";
         if (personality.chatPrompt) {
             // Extract first 60 characters of the chat prompt as a preview
-            description = personality.chatPrompt.substring(0, 60) + 
+            description = personality.chatPrompt.substring(0, 60) +
                 (personality.chatPrompt.length > 60 ? "..." : "");
         } else {
             description = "Custom AI with unique personality";
         }
-        
+
         option.innerHTML = `
             <div class="ai-option-header">
                 <strong>${personality.name || 'Saved AI ' + (index + 1)}</strong>
             </div>
             <p class="ai-option-description">${description}</p>
         `;
-        
+
         option.addEventListener('click', () => {
             // Call the onSelected callback with the selected personality
             if (typeof onSelected === 'function') {
@@ -696,7 +692,7 @@ function createAIPersonalitySelector(personalities, roomCode, onSelected) {
 
     // Add the content to the modal
     modal.appendChild(modalContent);
-    
+
     return modal;
 }
 

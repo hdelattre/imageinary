@@ -1,5 +1,5 @@
 // Prompt Editor Module
-let customPrompt = localStorage.getItem('imageinary_custom_prompt') || PROMPT_CONFIG.DEFAULT_PROMPT;
+let customPrompt = localStorage.getItem('imageinary_custom_prompt') || PROMPT_CONFIG.IMAGE_GEN_PROMPT;
 let isEditingRoomPrompt = false;
 
 // Function to open prompt editor with a specific prompt
@@ -105,9 +105,9 @@ function resetPrompt() {
         resetBtn.textContent = 'Reset to Room Prompt';
     } else {
         // Otherwise use the default prompt
-        promptTemplate.value = PROMPT_CONFIG.DEFAULT_PROMPT;
-        customPrompt = PROMPT_CONFIG.DEFAULT_PROMPT;
-        localStorage.setItem('imageinary_custom_prompt', PROMPT_CONFIG.DEFAULT_PROMPT);
+        promptTemplate.value = PROMPT_CONFIG.IMAGE_GEN_PROMPT;
+        customPrompt = PROMPT_CONFIG.IMAGE_GEN_PROMPT;
+        localStorage.setItem('imageinary_custom_prompt', PROMPT_CONFIG.IMAGE_GEN_PROMPT);
         resetBtn.textContent = 'Reset Successfully!';
     }
 

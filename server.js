@@ -780,7 +780,7 @@ function createRoom(roomCode, isPublic = false) {
         emptyRoomTimestamp: null,     // Track when the room becomes empty
         singlePlayerTimestamp: null,  // Track when the room has only one player
         // Default AI generation prompt template
-        customPrompt: PROMPT_CONFIG.DEFAULT_PROMPT,
+        customPrompt: PROMPT_CONFIG.IMAGE_GEN_PROMPT,
         aiPlayers: new Map(),         // Store AI player metadata (ID -> data),
         lastChanceTimer: null         // Timer to alert AI last chance to guess
     });
@@ -1400,7 +1400,7 @@ async function generateNewImage(roomCode) {
                 const username = guessPlayer.username;
 
                 // Use custom prompt template if available, otherwise use default
-                const promptTemplate = game.customPrompt || PROMPT_CONFIG.DEFAULT_PROMPT;
+                const promptTemplate = game.customPrompt || PROMPT_CONFIG.IMAGE_GEN_PROMPT;
 
                 // Replace the placeholder with the actual guess
                 const generationPrompt = promptTemplate.replace('{guess}', guessData.guess);

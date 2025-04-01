@@ -427,88 +427,23 @@ function addAIPlayer() {
     const savedPersonalities = aiPersonalityEditor.getSavedPersonalities();
 
     if (savedPersonalities && savedPersonalities.length > 0) {
-        // Show personality selector
-        showAIPersonalitySelector(savedPersonalities, roomCode);
+        // Use the AI personality selector from aiPersonalityEditor.js
+        aiPersonalityEditor.createAIPersonalitySelector(savedPersonalities, roomCode, (personality) => {
+            // Callback when an AI is selected
+            if (personality) {
+                // Send selected custom personality to server
+                socket.emit('addAIPlayer', {
+                    roomCode: roomCode,
+                    personality: personality
+                });
+            } else {
+                // Add default AI player
+                socket.emit('addAIPlayer', roomCode);
+            }
+        });
     } else {
         // Just add a default AI player
         socket.emit('addAIPlayer', roomCode);
-    }
-}
-
-// Function to show AI personality selector modal
-function showAIPersonalitySelector(personalities, roomCode) {
-    // Check if a modal is already open - prevent multiple modals
-    const existingModal = document.getElementById('aiPersonalityModal');
-    if (existingModal) {
-        // If there's already a modal open, just return without creating a new one
-        return;
-    }
-    
-    // Create a modal
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.id = 'aiPersonalityModal';
-    modal.style.display = 'flex';
-
-    // Create modal content
-    const modalContent = document.createElement('div');
-    modalContent.className = 'modal-content ai-selector';
-
-    // Add header
-    const header = document.createElement('h2');
-    header.textContent = 'Select AI Personality';
-    modalContent.appendChild(header);
-
-    // Add personality list
-    const list = document.createElement('div');
-    list.className = 'ai-personality-list';
-
-    // Add default option
-    const defaultOption = document.createElement('div');
-    defaultOption.className = 'ai-personality-option';
-    defaultOption.innerHTML = '<strong>Default AI</strong><p>Standard AI player with default personality</p>';
-    defaultOption.addEventListener('click', () => {
-        socket.emit('addAIPlayer', roomCode);
-        removeAIPersonalityModal();
-    });
-    list.appendChild(defaultOption);
-
-    // Add saved personalities
-    personalities.forEach((personality, index) => {
-        const option = document.createElement('div');
-        option.className = 'ai-personality-option';
-        option.innerHTML = `<strong>${personality.name || 'Saved AI ' + (index + 1)}</strong>
-            <p>Custom AI with unique personality</p>`;
-        option.addEventListener('click', () => {
-            socket.emit('addAIPlayer', {
-                roomCode: roomCode,
-                personality: personality
-            });
-            removeAIPersonalityModal();
-        });
-        list.appendChild(option);
-    });
-
-    modalContent.appendChild(list);
-
-    // Add close button
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'close-btn';
-    closeBtn.innerHTML = '&times;';
-    closeBtn.addEventListener('click', () => {
-        removeAIPersonalityModal();
-    });
-    modalContent.appendChild(closeBtn);
-
-    modal.appendChild(modalContent);
-    document.body.appendChild(modal);
-}
-
-// Helper function to safely remove the AI personality modal
-function removeAIPersonalityModal() {
-    const modal = document.getElementById('aiPersonalityModal');
-    if (modal && modal.parentNode) {
-        modal.parentNode.removeChild(modal);
     }
 }
 

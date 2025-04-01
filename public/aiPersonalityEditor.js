@@ -596,10 +596,125 @@ function getSavedPersonalities() {
     return loadSavedPersonalities();
 }
 
+// Create AI personality selector modal for choosing AI to add
+function createAIPersonalitySelector(personalities, roomCode, onSelected) {
+    
+    // Check if modal already exists
+    let modal = document.getElementById('aiPersonalityModal');
+    
+    if (modal) {
+        // If it exists, just make it visible and update its content
+        modal.innerHTML = ''; // Clear existing content
+        modal.style.display = 'flex'; // Make it visible
+    } else {
+        // Create a new modal if it doesn't exist
+        modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.id = 'aiPersonalityModal';
+        modal.style.display = 'flex';
+        document.body.appendChild(modal);
+    }
+
+    // Create modal content
+    const modalContent = document.createElement('div');
+    modalContent.className = 'modal-content ai-selector compact';
+
+    // Add header
+    const header = document.createElement('h2');
+    header.textContent = 'Select AI Personality';
+    modalContent.appendChild(header);
+
+    // Add personality list container with scrolling
+    const listContainer = document.createElement('div');
+    listContainer.className = 'ai-personality-list-container';
+    
+    // Add personality list
+    const list = document.createElement('div');
+    list.className = 'ai-personality-list';
+
+    // Add default option
+    const defaultOption = document.createElement('div');
+    defaultOption.className = 'ai-personality-option';
+    defaultOption.innerHTML = `
+        <div class="ai-option-header">
+            <strong>Default AI</strong>
+        </div>
+        <p class="ai-option-description">Standard AI player with balanced chat and guessing</p>
+    `;
+    defaultOption.addEventListener('click', () => {
+        // Call the onSelected callback with null personality (default)
+        if (typeof onSelected === 'function') {
+            onSelected(null);
+        }
+        hideAIPersonalityModal();
+    });
+    list.appendChild(defaultOption);
+
+    // Add saved personalities
+    personalities.forEach((personality, index) => {
+        const option = document.createElement('div');
+        option.className = 'ai-personality-option';
+        
+        // Get a brief description from the personality prompt
+        let description = "";
+        if (personality.chatPrompt) {
+            // Extract first 60 characters of the chat prompt as a preview
+            description = personality.chatPrompt.substring(0, 60) + 
+                (personality.chatPrompt.length > 60 ? "..." : "");
+        } else {
+            description = "Custom AI with unique personality";
+        }
+        
+        option.innerHTML = `
+            <div class="ai-option-header">
+                <strong>${personality.name || 'Saved AI ' + (index + 1)}</strong>
+            </div>
+            <p class="ai-option-description">${description}</p>
+        `;
+        
+        option.addEventListener('click', () => {
+            // Call the onSelected callback with the selected personality
+            if (typeof onSelected === 'function') {
+                onSelected(personality);
+            }
+            hideAIPersonalityModal();
+        });
+        list.appendChild(option);
+    });
+
+    listContainer.appendChild(list);
+    modalContent.appendChild(listContainer);
+
+    // Add close button
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'close-btn';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.addEventListener('click', () => {
+        hideAIPersonalityModal();
+    });
+    modalContent.appendChild(closeBtn);
+
+    // Add the content to the modal
+    modal.appendChild(modalContent);
+    
+    return modal;
+}
+
+// Helper function to hide the AI personality modal specifically
+function hideAIPersonalityModal() {
+    const modal = document.getElementById('aiPersonalityModal');
+    if (modal) {
+        // Hide the modal rather than removing it
+        modal.style.display = 'none';
+    }
+}
+
 // Export functions to global scope
 window.aiPersonalityEditor = {
     initAIPersonalityEditor,
     openAIPersonalityEditor,
     openSavedPersonalitiesEditor,
-    getSavedPersonalities
+    getSavedPersonalities,
+    createAIPersonalitySelector,
+    hideAIPersonalityModal
 };

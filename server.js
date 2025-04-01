@@ -23,6 +23,10 @@ const drawings = new Map(); // roomCode -> drawingData
 const lastMessageTimes = new Map(); // Tracks last message time per player
 const publicRooms = new Map(); // Stores public room data for listing
 
+// User consts
+const MAX_USERNAME_LENGTH = 24;
+const MAX_AI_NAME_LENGTH = 20;
+
 // Predefined prompts for the drawer
 const prompts = [
     "cat", "dog", "house", "tree", "car", "sun", "moon", "star", "flower", "boat",
@@ -179,10 +183,10 @@ io.on('connection', (socket) => {
         // Store custom prompt if provided
         if (customPrompt) {
             // Validate the prompt
+            customPrompt = sanitizeMessage(customPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
             const validation = PROMPT_CONFIG.validatePrompt(customPrompt);
             if (validation.valid) {
-                // Sanitize the validated prompt
-                game.customPrompt = sanitizeMessage(validation.prompt, PROMPT_CONFIG.VALID_CHARS);
+                game.customPrompt = customPrompt;
             }
         }
 
@@ -248,10 +252,11 @@ io.on('connection', (socket) => {
 
         if (isHost) {
             // Validate the prompt
+            prompt = sanitizeMessage(prompt, PROMPT_CONFIG.VALID_CHARS);
             const validation = PROMPT_CONFIG.validatePrompt(prompt);
             if (validation.valid) {
                 // Update the custom prompt with the validated prompt
-                game.customPrompt = sanitizeMessage(validation.prompt, PROMPT_CONFIG.VALID_CHARS);
+                game.customPrompt = prompt;
                 console.log(`Room ${roomCode}| Prompt updated by host: ${game.customPrompt}`);
 
                 // If this is a public room, update the public room list
@@ -283,13 +288,12 @@ io.on('connection', (socket) => {
             imageGenerationTimes.set(socket.id, now);
 
             // Validate the prompt template
+            promptTemplate = sanitizeMessage(promptTemplate, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
             const validation = PROMPT_CONFIG.validatePrompt(promptTemplate);
             if (!validation.valid) {
                 socket.emit('testImageResult', { error: 'Invalid prompt template: ' + validation.error });
                 return;
             }
-            // Use the validated prompt (might have been trimmed)
-            promptTemplate = validation.prompt;
 
             const generationPrompt = promptTemplate.replace('{guess}', guess);
 
@@ -325,7 +329,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('joinRoom', ({ roomCode, username }) => {
-        username = sanitizeMessage(username, '', 24);
+        username = sanitizeMessage(username, '', MAX_USERNAME_LENGTH);
 
         if (games.has(roomCode)) {
             socket.join(roomCode);
@@ -356,7 +360,7 @@ io.on('connection', (socket) => {
             if (currentDrawing) {
                 socket.emit('drawingUpdate', currentDrawing);
             }
-            
+
             // Send chat history to the new player
             game.chatHistory.forEach(msg => {
                 if (msg.playerId) {
@@ -514,8 +518,12 @@ io.on('connection', (socket) => {
 
         // Update the AI player's prompts
         const aiData = game.aiPlayers.get(aiPlayerId);
-        aiData.chatPrompt = chatPrompt || AI_CHAT_PROMPT;
-        aiData.guessPrompt = guessPrompt || AI_GUESS_PROMPT;
+        if (chatPrompt) {
+            aiData.chatPrompt = sanitizeMessage(chatPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+        }
+        if (guessPrompt) {
+            aiData.guessPrompt = sanitizeMessage(guessPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+        }
 
         console.log(`Room ${roomCode}| AI player ${aiPlayerId} personality updated`);
 
@@ -548,7 +556,9 @@ io.on('connection', (socket) => {
 
         try {
             // Sanitize the name
-            const sanitizedName = sanitizeMessage(name, '', 20);
+            const sanitizedName = sanitizeMessage(name, '', MAX_AI_NAME_LENGTH);
+            chatPrompt = sanitizeMessage(chatPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+            guessPrompt = sanitizeMessage(guessPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
 
             // Create the AI player with custom properties
             const aiPlayerId = createAIPlayer(roomCode, sanitizedName, chatPrompt, guessPrompt);
@@ -692,13 +702,13 @@ function sendSystemMessage(roomCode, message) {
         message: message,
         timestamp
     };
-    
+
     // Store system message in chat history
     const game = games.get(roomCode);
     if (game) {
         game.chatHistory.push(systemMessage);
     }
-    
+
     io.to(roomCode).emit('systemMessage', systemMessage);
 }
 

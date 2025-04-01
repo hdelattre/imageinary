@@ -6,13 +6,11 @@ const PROMPT_CONFIG = {
     MAX_PROMPT_LENGTH: 1024, // Maximum length of prompt in characters
     VALID_CHARS: '{}./!?-,\'',
     MAX_AI_PLAYERS: 4, // Maximum number of AI players allowed per room
-    // Function to valid/clean up prompt
     validatePrompt: (prompt) => {
         // Check if prompt is empty
         if (!prompt) {
             return {
                 valid: false,
-                prompt: null,
                 error: 'Prompt cannot be empty'
             };
         }
@@ -21,23 +19,20 @@ const PROMPT_CONFIG = {
         if (!prompt.includes('{guess}')) {
             return {
                 valid: false,
-                prompt: null,
                 error: 'Missing {guess} placeholder'
             };
         }
 
         // Check if prompt exceeds maximum length
         if (prompt.length > PROMPT_CONFIG.MAX_PROMPT_LENGTH) {
-            const trimmed = prompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
             return {
-                valid: true,
-                prompt: trimmed,
-                warning: `Trimmed to ${PROMPT_CONFIG.MAX_PROMPT_LENGTH} chars`
+                valid: false,
+                error: `Cannot be more than ${PROMPT_CONFIG.MAX_PROMPT_LENGTH} chars`
             };
         }
 
         // Prompt is valid
-        return { valid: true, prompt: prompt };
+        return { valid: true, error: null };
     }
 };
 

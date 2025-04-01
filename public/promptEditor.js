@@ -49,14 +49,11 @@ function savePrompt() {
         return false;
     }
 
-    // Get validated prompt (which may have been trimmed)
-    const newPrompt = validation.prompt;
-
     // If editing a room prompt, update it on the server
     if (isEditingRoomPrompt) {
         const roomCode = document.getElementById('currentRoom').textContent;
         // Send the updated prompt to the server
-        socket.emit('updateRoomPrompt', { roomCode, prompt: newPrompt });
+        socket.emit('updateRoomPrompt', { roomCode, prompt: promptValue });
 
         // Show success feedback on the view prompt button
         const viewPromptBtn = document.getElementById('viewPromptBtn');
@@ -70,31 +67,17 @@ function savePrompt() {
     }
     else {
         // Update local storage for future games
-        customPrompt = newPrompt;
-        localStorage.setItem('imageinary_custom_prompt', newPrompt);
+        customPrompt = promptValue;
+        localStorage.setItem('imageinary_custom_prompt', promptValue);
     }
 
-    // Handle any warnings (like trimming)
-    if (validation.warning) {
-        saveBtn.textContent = validation.warning;
-        saveBtn.style.backgroundColor = '#f39c12';
-        setTimeout(() => {
-            saveBtn.textContent = isEditingRoomPrompt ? 'Room Prompt Updated!' : 'Saved Successfully!';
-            saveBtn.style.backgroundColor = '#4CAF50';
-            setTimeout(() => {
-                saveBtn.textContent = originalText;
-                saveBtn.style.backgroundColor = '';
-            }, 1500);
-        }, 1500);
-    } else {
-        // Show success feedback
-        saveBtn.textContent = isEditingRoomPrompt ? 'Room Prompt Updated!' : 'Saved Successfully!';
-        saveBtn.style.backgroundColor = '#4CAF50';
-        setTimeout(() => {
-            saveBtn.textContent = originalText;
-            saveBtn.style.backgroundColor = '';
-        }, 2000);
-    }
+    // Show success feedback
+    saveBtn.textContent = isEditingRoomPrompt ? 'Room Prompt Updated!' : 'Saved Successfully!';
+    saveBtn.style.backgroundColor = '#4CAF50';
+    setTimeout(() => {
+        saveBtn.textContent = originalText;
+        saveBtn.style.backgroundColor = '';
+    }, 2000);
 
     // Close the modal
     closePromptEditor();

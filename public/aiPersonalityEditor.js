@@ -219,8 +219,22 @@ function createEditorUI() {
     existingForm.id = 'existingAIForm';
     existingForm.style.display = 'none';
 
-    const existingHeader = document.createElement('h4');
-    existingHeader.innerHTML = 'Edit AI Player: <span id="aiPlayerName"></span>';
+    const existingHeader = document.createElement('div');
+    existingHeader.className = 'ai-header-row';
+    
+    const titleHeader = document.createElement('h4');
+    titleHeader.innerHTML = 'Edit AI Player: <span id="aiPlayerName"></span>';
+    existingHeader.appendChild(titleHeader);
+    
+    // Add delete button for saved personalities
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.id = 'deleteAIPersonalityBtn';
+    deleteBtn.className = 'danger-btn';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.style.display = 'none'; // Only show for saved personalities
+    existingHeader.appendChild(deleteBtn);
+    
     existingForm.appendChild(existingHeader);
 
     // Core personality prompt group
@@ -332,6 +346,9 @@ function setupEventListeners() {
 
     // Create New AI button click
     document.getElementById('cancelCreateAIBtn').addEventListener('click', hideCreateNewAIForm);
+
+    // Delete button click
+    document.getElementById('deleteAIPersonalityBtn').addEventListener('click', deleteAIPersonality);
 
     // AI player selection change
     document.getElementById('aiPlayerSelect').addEventListener('change', onAIPlayerSelect);
@@ -509,10 +526,19 @@ function showExistingAIForm(aiPlayerId) {
     formContainer.style.display = 'block';
 
     // Fill in the form with AI player data
+    // Show or hide delete button based on whether it's a saved personality
+    const deleteBtn = document.getElementById('deleteAIPersonalityBtn');
+    
     if (aiPlayerId.startsWith('saved-')) {
         aiPlayerName.textContent = aiPlayer.name || `Saved AI ${aiPlayerId.replace('saved-', '')}`;
+        // Show delete button for saved personalities
+        deleteBtn.style.display = 'block';
+        // Store the ID for delete operation
+        deleteBtn.dataset.personalityId = aiPlayerId;
     } else {
         aiPlayerName.textContent = aiPlayer.username || 'AI Player';
+        // Hide delete button for in-game personalities
+        deleteBtn.style.display = 'none';
     }
 
     aiCorePrompt.value = aiPlayer.corePersonalityPrompt || PROMPT_CONFIG.CORE_PERSONALITY_PROMPT;
@@ -622,6 +648,44 @@ function saveAIPersonality() {
             chatPrompt: aiChatPrompt,
             guessPrompt: aiGuessPrompt
         });
+    }
+}
+
+// Function to delete an AI personality
+function deleteAIPersonality() {
+    const deleteBtn = document.getElementById('deleteAIPersonalityBtn');
+    const personalityId = deleteBtn.dataset.personalityId;
+    
+    if (!personalityId || !personalityId.startsWith('saved-')) {
+        showNotification('No personality selected for deletion', 'error');
+        return;
+    }
+    
+    // Ask for confirmation
+    if (!confirm('Are you sure you want to delete this AI personality? This cannot be undone.')) {
+        return;
+    }
+    
+    const index = parseInt(personalityId.replace('saved-', ''));
+    if (index >= 0 && index < savedPersonalities.length) {
+        // Remove the personality from the array
+        const deletedName = savedPersonalities[index].name;
+        savedPersonalities.splice(index, 1);
+        
+        // Save the updated array
+        savePersonalitiesToStorage();
+        
+        // Notify the user
+        showNotification(`AI personality "${deletedName}" deleted successfully`, 'success');
+        
+        // Update the list and close the edit form
+        updateSavedPersonalitiesList();
+        const formContainer = document.getElementById('aiPersonalityFormContainer');
+        if (formContainer) {
+            formContainer.style.display = 'none';
+        }
+    } else {
+        showNotification('Failed to delete AI personality', 'error');
     }
 }
 

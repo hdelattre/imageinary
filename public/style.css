@@ -1234,10 +1234,29 @@ button {
     margin-bottom: 20px;
 }
 
+.ai-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
 .ai-editor-container h4 {
     margin-top: 0;
-    margin-bottom: 15px;
+    margin-bottom: 0;
     color: #2980b9;
+}
+
+.danger-btn {
+    background-color: #e74c3c;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.danger-btn:hover {
+    background-color: #c0392b;
 }
 
 .ai-editor-container textarea {

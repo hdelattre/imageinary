@@ -5,6 +5,7 @@ const socketIo = require('socket.io');
 const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 const geminiService = require('./geminiService');
+const promptBuilder = require('./promptBuilder');
 
 // Import shared configuration and validation
 const PROMPT_CONFIG = require('./public/shared-config');
@@ -285,7 +286,7 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            const generationPrompt = promptTemplate.replace('{guess}', guess);
+            const generationPrompt = promptBuilder.buildImageGenerationPrompt(guess, promptTemplate);
 
             const result = await geminiService.requestGeminiResponse(generationPrompt, drawingData);
 
@@ -553,7 +554,7 @@ io.on('connection', (socket) => {
             const sanitizedName = sanitizeMessage(name, '', MAX_AI_NAME_LENGTH);
             chatPrompt = sanitizeMessage(chatPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
             guessPrompt = sanitizeMessage(guessPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
-            
+
             if (corePersonalityPrompt) {
                 corePersonalityPrompt = sanitizeMessage(corePersonalityPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
             } else {
@@ -1156,16 +1157,16 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
         const username = game.players.get(aiPlayerId).username;
         const corePersonalityPrompt = aiData.corePersonalityPrompt;
 
-        // Get chat history for context (last 5 messages)
-        const recentChatHistory = game.chatHistory.slice(-5).map(msg =>
-            `${msg.username}: ${msg.message}`
-        ).join('\n');
+        // Get formatted chat history for context
+        const recentChatHistory = promptBuilder.formatRecentChatHistory(game.chatHistory);
 
-        // Use the AI's custom guess prompt if available, otherwise use default
-        const actionPrompt = aiData.guessPrompt || AI_GUESS_PROMPT;
-
-        // Set up the guess prompt with updated structure including personality and username
-        const prompt = `You are ${username}. Your personality: ${corePersonalityPrompt}\n\nRecent chat history:\n${recentChatHistory}\n\n${actionPrompt}`;
+        // Build the AI guess prompt
+        const prompt = promptBuilder.buildAIGuessPrompt(
+            username, 
+            corePersonalityPrompt, 
+            recentChatHistory, 
+            aiData.guessPrompt || AI_GUESS_PROMPT
+        );
 
         // Use textOnly=true to utilize the faster model for guesses
         const result = await geminiService.requestGeminiResponse(prompt, drawingData, true);
@@ -1208,16 +1209,16 @@ async function makeAIChat(roomCode, aiPlayerId, drawingData) {
         const username = game.players.get(aiPlayerId).username;
         const corePersonalityPrompt = aiData.corePersonalityPrompt;
 
-        // Get chat history for context (last 5 messages)
-        const recentChatHistory = game.chatHistory.slice(-5).map(msg =>
-            `${msg.username}: ${msg.message}`
-        ).join('\n');
+        // Get formatted chat history for context
+        const recentChatHistory = promptBuilder.formatRecentChatHistory(game.chatHistory);
 
-        // Use the AI's custom chat prompt if available, otherwise use default
-        const actionPrompt = aiData.chatPrompt || AI_CHAT_PROMPT;
-
-        // Set up the chat prompt with updated structure including personality and username
-        const prompt = `You are ${username}. Your personality: ${corePersonalityPrompt}\n\nRecent chat history:\n${recentChatHistory}\n\n${actionPrompt}`;
+        // Build the AI chat prompt
+        const prompt = promptBuilder.buildAIChatPrompt(
+            username, 
+            corePersonalityPrompt, 
+            recentChatHistory, 
+            aiData.chatPrompt || AI_CHAT_PROMPT
+        );
         const textOnly = true;
 
         const result = await geminiService.requestGeminiResponse(prompt, drawingData, textOnly);
@@ -1256,21 +1257,16 @@ async function makeAIPlayersVote(roomCode) {
                     const username = game.players.get(aiPlayerId).username;
                     const corePersonalityPrompt = aiData.corePersonalityPrompt;
 
-                    // Get chat history for context (last 5 messages)
-                    const recentChatHistory = game.chatHistory.slice(-5).map(msg =>
-                        `${msg.username}: ${msg.message}`
-                    ).join('\n');
+                    // Get formatted chat history for context
+                    const recentChatHistory = promptBuilder.formatRecentChatHistory(game.chatHistory);
 
-                    // Create options list for voting
-                    const options = game.generatedImages.map((img, index) => 
-                        `${index + 1}. Guess "${img.guess}" by ${img.playerName}`
-                    ).join('\n');
-
-                    // Create voting prompt with structure
-                    const votePrompt = `Here are the options to vote on:\n${options}\n\nBased on your personality and the chat history, vote for the best one by specifying the number and provide a brief reason. Format your response as 'Vote: [number]\nReason: [reason]'`;
-                    
-                    // Set up the complete prompt with updated structure
-                    const prompt = `You are ${username}. Your personality: ${corePersonalityPrompt}\n\nRecent chat history:\n${recentChatHistory}\n\n${votePrompt}`;
+                    // Build the AI voting prompt
+                    const prompt = promptBuilder.buildAIVotingPrompt(
+                        username,
+                        corePersonalityPrompt,
+                        recentChatHistory,
+                        game.generatedImages
+                    );
 
                     // Get AI vote
                     const result = await geminiService.requestGeminiResponse(prompt, null, true);
@@ -1353,23 +1349,23 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
         const username = game.players.get(aiPlayerId).username;
         const corePersonalityPrompt = aiData.corePersonalityPrompt;
 
-        // Get chat history for context (last 5 messages)
-        const recentChatHistory = game.chatHistory.slice(-5).map(msg =>
-            `${msg.username}: ${msg.message}`
-        ).join('\n');
+        // Get formatted chat history for context
+        const recentChatHistory = promptBuilder.formatRecentChatHistory(game.chatHistory);
 
-        // Drawing prompt with personality and context
-        const drawPrompt = `You need to draw ${game.currentPrompt}. Based on your personality and the chat history, describe briefly how you will draw it.`;
-        
-        // Set up the drawing prompt with updated structure
-        const prompt = `You are ${username}. Your personality: ${corePersonalityPrompt}\n\nRecent chat history:\n${recentChatHistory}\n\n${drawPrompt}`;
+        // Build the AI drawing concept prompt
+        const prompt = promptBuilder.buildAIDrawingConceptPrompt(
+            username, 
+            corePersonalityPrompt, 
+            recentChatHistory, 
+            game.currentPrompt
+        );
 
         // Get drawing concept from AI
         const conceptResult = await geminiService.requestGeminiResponse(prompt, null, true);
         const drawingConcept = conceptResult.text.trim();
 
-        // Now create the actual drawing
-        const doodlePrompt = `Create a fun black and white Pictionary-style drawing of a "${game.currentPrompt}". Make it look hand-drawn and somewhat recognizable ${game.currentPrompt}. The drawing should be stylized like a human would draw it when playing Pictionary - simple lines, no shading, minimal details.`;
+        // Build the prompt for creating the actual drawing
+        const doodlePrompt = promptBuilder.buildAIDrawingCreationPrompt(game.currentPrompt);
 
         const result = await geminiService.requestGeminiResponse(doodlePrompt);
 
@@ -1400,7 +1396,7 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
         io.to(roomCode).emit('drawingUpdate', blankCanvasData);
 
         // Let clients know about the AI drawing failure
-        sendSystemMessage(roomCode, `AI player had trouble drawing "${game.currentPrompt}"`);
+        sendSystemMessage(roomCode, `AI player had trouble drawing "${prompt}"`);
     }
 }
 
@@ -1460,11 +1456,11 @@ async function generateNewImage(roomCode) {
                 const guessPlayer = game.players.get(guessData.playerId);
                 const username = guessPlayer.username;
 
-                // Use custom prompt template if available, otherwise use default
-                const promptTemplate = game.customPrompt || PROMPT_CONFIG.IMAGE_GEN_PROMPT;
-
-                // Replace the placeholder with the actual guess
-                const generationPrompt = promptTemplate.replace('{guess}', guessData.guess);
+                // Build image generation prompt with the custom template if available
+                const generationPrompt = promptBuilder.buildImageGenerationPrompt(
+                    guessData.guess, 
+                    game.customPrompt
+                );
 
                 const result = await geminiService.requestGeminiResponse(generationPrompt, drawingData);
                 const imageData = result.imageData;

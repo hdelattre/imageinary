@@ -50,17 +50,18 @@ const AI_NAMES = [
     "Gizmo", "Vex", "Saffron", "Drifty", "Korvax", "Blitz"
 ];
 
-// AI player configuration constants
-const AI_MIN_GUESS_TIME = 4000; // 4 seconds
-const AI_MAX_GUESS_TIME = 12000; // 12 seconds
-const AI_GUESS_INTERVAL = 30000; // 30 seconds between guesses
-const AI_LAST_CHANCE_TIME = 10000; // 10 seconds left
-const AI_DRAWING_TIME = 3000; // 3 seconds to create drawing
-const AI_CHAT_PROBABILITY = 0.4; // 40% chance of sending a chat message instead of a guess
-const AI_CHAT_PROMPT = "You're playing a drawing game with friends. Look at this drawing and the chat history, then send a single casual, funny message as if you're a player. Don't guess what the drawing is. Instead, comment on the drawing process, react to other messages, or make a light joke. But surprising and sometimes controversial. Respond with your only chat message and nothing else."
-const AI_GUESS_PROMPT = PROMPT_CONFIG.GUESS_PROMPT;
+// AI player timing configuration
+const aiTiming = {
+    minGuessTime: 4000,      // 4 seconds
+    maxGuessTime: 12000,     // 12 seconds
+    guessInterval: 30000,    // 30 seconds between guesses
+    lastChanceTime: 10000,   // 10 seconds left
+    drawingTime: 3000,       // 3 seconds to create drawing
+    chatProbability: 0.4     // 40% chance of sending a chat message
+};
 
-const roundDuration = 45;
+// Game configuration
+const roundDuration = 45; // seconds
 
 app.use(express.static('public'));
 
@@ -477,9 +478,9 @@ io.on('connection', (socket) => {
                     id: aiPlayerId,
                     username: playerData.username,
                     color: playerData.color,
-                    corePersonalityPrompt: aiData.corePersonalityPrompt || PROMPT_CONFIG.CORE_PERSONALITY_PROMPT,
-                    chatPrompt: aiData.chatPrompt || AI_CHAT_PROMPT,
-                    guessPrompt: aiData.guessPrompt || AI_GUESS_PROMPT
+                    corePersonalityPrompt: aiData.corePersonalityPrompt,
+                    chatPrompt: aiData.chatPrompt,
+                    guessPrompt: aiData.guessPrompt
                 });
             }
         });
@@ -850,11 +851,11 @@ function createAIPlayer(roomCode, personality = null) {
     // Generate a unique AI player ID
     const aiPlayerId = `ai-${uuidv4()}`;
 
-    // Extract personality properties or use defaults
+    // Extract personality properties
     const customName = personality?.name || null;
-    const chatPrompt = personality?.chatPrompt || AI_CHAT_PROMPT;
-    const guessPrompt = personality?.guessPrompt || AI_GUESS_PROMPT;
-    const corePersonalityPrompt = personality?.corePersonalityPrompt || PROMPT_CONFIG.CORE_PERSONALITY_PROMPT;
+    const chatPrompt = personality?.chatPrompt;
+    const guessPrompt = personality?.guessPrompt;
+    const corePersonalityPrompt = personality?.corePersonalityPrompt;
 
     // Use custom name if provided, otherwise select random name
     let aiName;
@@ -1013,7 +1014,7 @@ function startTurn(roomCode) {
         // Schedule the drawing after a short delay
         aiData.drawingTimer = setTimeout(() => {
             createAIDrawing(roomCode, game.currentDrawer, game.currentPrompt);
-        }, AI_DRAWING_TIME);
+        }, aiTiming.drawingTime);
     }
 
     // Reset AI player guessing timers
@@ -1064,15 +1065,15 @@ function handleAIPlayerDrawingUpdate(roomCode, drawingData) {
             return;
         }
         // Normal timed guess (not last chance)
-        else if (timeSinceLastGuess > AI_GUESS_INTERVAL) {
+        else if (timeSinceLastGuess > aiTiming.guessInterval) {
             // Pick a random time between MIN and MAX for the guess
-            const guessDelay = AI_MIN_GUESS_TIME + Math.random() * (AI_MAX_GUESS_TIME - AI_MIN_GUESS_TIME);
+            const guessDelay = aiTiming.minGuessTime + Math.random() * (aiTiming.maxGuessTime - aiTiming.minGuessTime);
             aiData.guessTimer = setTimeout(() => {
                 makeAIGuess(roomCode, aiPlayerId, drawingData);
             }, guessDelay);
 
             // Randomly decide if we should also send a chat message before the guess
-            if (Math.random() < AI_CHAT_PROBABILITY && guessDelay > 8000) {
+            if (Math.random() < aiTiming.chatProbability && guessDelay > 8000) {
                 // Add a chat message that comes before the guess
                 const chatDelay = Math.min(3000 + Math.random() * 3000, guessDelay - 3000);
                 aiData.chatTimer = setTimeout(() => {
@@ -1114,8 +1115,8 @@ function resetAIPlayerGuessTimers(roomCode) {
         aiData.lastDrawingData = null;
     });
 
-    // Set up last chance timer for all AI players at exactly AI_LAST_CHANCE_TIME before round end
-    const lastChanceTime = (roundDuration * 1000) - AI_LAST_CHANCE_TIME;
+    // Set up last chance timer for all AI players at exactly lastChanceTime before round end
+    const lastChanceTime = (roundDuration * 1000) - aiTiming.lastChanceTime;
     game.lastChanceTimer = setTimeout(() => {
         const drawingData = drawings.get(roomCode);
         if (!drawingData) return;
@@ -1162,10 +1163,10 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
 
         // Build the AI guess prompt
         const prompt = promptBuilder.buildAIGuessPrompt(
+            recentChatHistory,
             username, 
             corePersonalityPrompt, 
-            recentChatHistory, 
-            aiData.guessPrompt || AI_GUESS_PROMPT
+            aiData.guessPrompt
         );
 
         // Use textOnly=true to utilize the faster model for guesses
@@ -1214,10 +1215,10 @@ async function makeAIChat(roomCode, aiPlayerId, drawingData) {
 
         // Build the AI chat prompt
         const prompt = promptBuilder.buildAIChatPrompt(
+            recentChatHistory,
             username, 
             corePersonalityPrompt, 
-            recentChatHistory, 
-            aiData.chatPrompt || AI_CHAT_PROMPT
+            aiData.chatPrompt
         );
         const textOnly = true;
 
@@ -1262,9 +1263,9 @@ async function makeAIPlayersVote(roomCode) {
 
                     // Build the AI voting prompt
                     const prompt = promptBuilder.buildAIVotingPrompt(
+                        recentChatHistory,
                         username,
                         corePersonalityPrompt,
-                        recentChatHistory,
                         game.generatedImages
                     );
 
@@ -1354,9 +1355,9 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
 
         // Build the AI drawing concept prompt
         const prompt = promptBuilder.buildAIDrawingConceptPrompt(
+            recentChatHistory,
             username, 
             corePersonalityPrompt, 
-            recentChatHistory, 
             game.currentPrompt
         );
 

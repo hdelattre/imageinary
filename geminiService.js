@@ -268,6 +268,15 @@ async function requestGeminiResponse(prompt, drawingData = null, textOnly = fals
             // Try again with a different model
             return requestGeminiResponse(prompt, drawingData, textOnly);
         }
+        else if (error.status === 503) {
+            // Service is unavailable likely because the model is overloaded, pausing briefly
+            const unpauseTime = Date.now() + 55 * 1000;
+            pausedModels.set(geminiModel.NAME, unpauseTime);
+
+            console.log(`Model ${geminiModel.NAME} paused due to 503 service error. Unpause at: ${new Date(unpauseTime).toLocaleTimeString()}`);
+
+            return requestGeminiResponse(prompt, drawingData, textOnly);
+        }
 
         console.error(`Gemini API error: ${error.message}`);
         throw error; // Re-throw other errors for the caller to handle

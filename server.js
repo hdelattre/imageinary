@@ -511,14 +511,38 @@ io.on('connection', (socket) => {
 
         // Update the AI player's prompts
         const aiData = game.aiPlayers.get(aiPlayerId);
+
+        // For core personality prompt
         if (corePersonalityPrompt) {
-            aiData.corePersonalityPrompt = sanitizeMessage(corePersonalityPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+            const sanitized = sanitizeMessage(corePersonalityPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+            // Check if it matches the default (null it if it does)
+            if (sanitized === PROMPT_CONFIG.CORE_PERSONALITY_PROMPT) {
+                aiData.corePersonalityPrompt = null;
+            } else {
+                aiData.corePersonalityPrompt = sanitized;
+            }
         }
+
+        // For chat prompt
         if (chatPrompt) {
-            aiData.chatPrompt = sanitizeMessage(chatPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+            const sanitized = sanitizeMessage(chatPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+            // Check if it matches the default (null it if it does)
+            if (sanitized === promptBuilder.DEFAULT_CHAT_PROMPT) {
+                aiData.chatPrompt = null;
+            } else {
+                aiData.chatPrompt = sanitized;
+            }
         }
+
+        // For guess prompt
         if (guessPrompt) {
-            aiData.guessPrompt = sanitizeMessage(guessPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+            const sanitized = sanitizeMessage(guessPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+            // Check if it matches the default (null it if it does)
+            if (sanitized === PROMPT_CONFIG.GUESS_PROMPT) {
+                aiData.guessPrompt = null;
+            } else {
+                aiData.guessPrompt = sanitized;
+            }
         }
 
         console.log(`Room ${roomCode}| AI player ${aiPlayerId} personality updated`);
@@ -553,21 +577,40 @@ io.on('connection', (socket) => {
         try {
             // Sanitize the name
             const sanitizedName = sanitizeMessage(name, '', MAX_AI_NAME_LENGTH);
-            chatPrompt = sanitizeMessage(chatPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
-            guessPrompt = sanitizeMessage(guessPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
 
+            // Handle chat prompt - set to null if it matches default
+            let sanitizedChatPrompt = null;
+            if (chatPrompt) {
+                const sanitized = sanitizeMessage(chatPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+                if (sanitized !== promptBuilder.DEFAULT_CHAT_PROMPT) {
+                    sanitizedChatPrompt = sanitized;
+                }
+            }
+
+            // Handle guess prompt - set to null if it matches default
+            let sanitizedGuessPrompt = null;
+            if (guessPrompt) {
+                const sanitized = sanitizeMessage(guessPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+                if (sanitized !== PROMPT_CONFIG.GUESS_PROMPT) {
+                    sanitizedGuessPrompt = sanitized;
+                }
+            }
+
+            // Handle core personality - set to null if it matches default
+            let sanitizedCorePrompt = null;
             if (corePersonalityPrompt) {
-                corePersonalityPrompt = sanitizeMessage(corePersonalityPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
-            } else {
-                corePersonalityPrompt = PROMPT_CONFIG.CORE_PERSONALITY_PROMPT;
+                const sanitized = sanitizeMessage(corePersonalityPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+                if (sanitized !== PROMPT_CONFIG.CORE_PERSONALITY_PROMPT) {
+                    sanitizedCorePrompt = sanitized;
+                }
             }
 
             // Create the AI player with custom properties
             const personality = {
                 name: sanitizedName,
-                chatPrompt: chatPrompt,
-                guessPrompt: guessPrompt,
-                corePersonalityPrompt: corePersonalityPrompt
+                chatPrompt: sanitizedChatPrompt,
+                guessPrompt: sanitizedGuessPrompt,
+                corePersonalityPrompt: sanitizedCorePrompt
             };
             const aiPlayerId = createAIPlayer(roomCode, personality);
 
@@ -1164,8 +1207,8 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
         // Build the AI guess prompt
         const prompt = promptBuilder.buildAIGuessPrompt(
             recentChatHistory,
-            username, 
-            corePersonalityPrompt, 
+            username,
+            corePersonalityPrompt,
             aiData.guessPrompt
         );
 
@@ -1216,8 +1259,8 @@ async function makeAIChat(roomCode, aiPlayerId, drawingData) {
         // Build the AI chat prompt
         const prompt = promptBuilder.buildAIChatPrompt(
             recentChatHistory,
-            username, 
-            corePersonalityPrompt, 
+            username,
+            corePersonalityPrompt,
             aiData.chatPrompt
         );
         const textOnly = true;
@@ -1356,8 +1399,8 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
         // Build the AI drawing concept prompt
         const prompt = promptBuilder.buildAIDrawingConceptPrompt(
             recentChatHistory,
-            username, 
-            corePersonalityPrompt, 
+            username,
+            corePersonalityPrompt,
             game.currentPrompt
         );
 
@@ -1459,7 +1502,7 @@ async function generateNewImage(roomCode) {
 
                 // Build image generation prompt with the custom template if available
                 const generationPrompt = promptBuilder.buildImageGenerationPrompt(
-                    guessData.guess, 
+                    guessData.guess,
                     game.customPrompt
                 );
 

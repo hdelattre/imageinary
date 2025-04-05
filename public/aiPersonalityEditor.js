@@ -221,11 +221,11 @@ function createEditorUI() {
 
     const existingHeader = document.createElement('div');
     existingHeader.className = 'ai-header-row';
-    
+
     const titleHeader = document.createElement('h4');
     titleHeader.innerHTML = 'Edit AI Player: <span id="aiPlayerName"></span>';
     existingHeader.appendChild(titleHeader);
-    
+
     // Add delete button for saved personalities
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
@@ -234,7 +234,7 @@ function createEditorUI() {
     deleteBtn.textContent = 'Delete';
     deleteBtn.style.display = 'none'; // Only show for saved personalities
     existingHeader.appendChild(deleteBtn);
-    
+
     existingForm.appendChild(existingHeader);
 
     // Core personality prompt group
@@ -528,7 +528,7 @@ function showExistingAIForm(aiPlayerId) {
     // Fill in the form with AI player data
     // Show or hide delete button based on whether it's a saved personality
     const deleteBtn = document.getElementById('deleteAIPersonalityBtn');
-    
+
     if (aiPlayerId.startsWith('saved-')) {
         aiPlayerName.textContent = aiPlayer.name || `Saved AI ${aiPlayerId.replace('saved-', '')}`;
         // Show delete button for saved personalities
@@ -563,13 +563,13 @@ function saveLocalAIPersonality() {
 
         // Get core personality from the form
         const newAICorePrompt = document.getElementById('newAICorePrompt').value.trim();
-        
+
         // Create new local personality
         const newPersonality = {
             name: newAIName,
-            corePersonalityPrompt: newAICorePrompt,
-            chatPrompt: newAIChatPrompt,
-            guessPrompt: newAIGuessPrompt
+            corePersonalityPrompt: newAICorePrompt != PROMPT_CONFIG.CORE_PERSONALITY_PROMPT ? newAICorePrompt : null,
+            chatPrompt: newAIChatPrompt != PROMPT_CONFIG.CHAT_PROMPT ? newAIChatPrompt : null,
+            guessPrompt: newAIGuessPrompt != PROMPT_CONFIG.GUESS_PROMPT ? newAIGuessPrompt : null
         };
 
         // Add to saved personalities
@@ -639,7 +639,7 @@ function saveAIPersonality() {
         const aiGuessPrompt = document.getElementById('aiGuessPrompt').value.trim();
 
         const aiCorePrompt = document.getElementById('aiCorePrompt').value.trim();
-        
+
         // Send request to update AI personality
         socket.emit('updateAIPlayer', {
             roomCode,
@@ -655,29 +655,29 @@ function saveAIPersonality() {
 function deleteAIPersonality() {
     const deleteBtn = document.getElementById('deleteAIPersonalityBtn');
     const personalityId = deleteBtn.dataset.personalityId;
-    
+
     if (!personalityId || !personalityId.startsWith('saved-')) {
         showNotification('No personality selected for deletion', 'error');
         return;
     }
-    
+
     // Ask for confirmation
     if (!confirm('Are you sure you want to delete this AI personality? This cannot be undone.')) {
         return;
     }
-    
+
     const index = parseInt(personalityId.replace('saved-', ''));
     if (index >= 0 && index < savedPersonalities.length) {
         // Remove the personality from the array
         const deletedName = savedPersonalities[index].name;
         savedPersonalities.splice(index, 1);
-        
+
         // Save the updated array
         savePersonalitiesToStorage();
-        
+
         // Notify the user
         showNotification(`AI personality "${deletedName}" deleted successfully`, 'success');
-        
+
         // Update the list and close the edit form
         updateSavedPersonalitiesList();
         const formContainer = document.getElementById('aiPersonalityFormContainer');

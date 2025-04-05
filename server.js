@@ -1201,12 +1201,9 @@ async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
         const username = game.players.get(aiPlayerId).username;
         const corePersonalityPrompt = aiData.corePersonalityPrompt;
 
-        // Get formatted chat history for context
-        const recentChatHistory = promptBuilder.formatRecentChatHistory(game.chatHistory);
-
         // Build the AI guess prompt
         const prompt = promptBuilder.buildAIGuessPrompt(
-            recentChatHistory,
+            game.chatHistory,
             username,
             corePersonalityPrompt,
             aiData.guessPrompt
@@ -1253,12 +1250,9 @@ async function makeAIChat(roomCode, aiPlayerId, drawingData) {
         const username = game.players.get(aiPlayerId).username;
         const corePersonalityPrompt = aiData.corePersonalityPrompt;
 
-        // Get formatted chat history for context
-        const recentChatHistory = promptBuilder.formatRecentChatHistory(game.chatHistory);
-
         // Build the AI chat prompt
         const prompt = promptBuilder.buildAIChatPrompt(
-            recentChatHistory,
+            game.chatHistory,
             username,
             corePersonalityPrompt,
             aiData.chatPrompt
@@ -1301,12 +1295,9 @@ async function makeAIPlayersVote(roomCode) {
                     const username = game.players.get(aiPlayerId).username;
                     const corePersonalityPrompt = aiData.corePersonalityPrompt;
 
-                    // Get formatted chat history for context
-                    const recentChatHistory = promptBuilder.formatRecentChatHistory(game.chatHistory);
-
                     // Build the AI voting prompt
                     const prompt = promptBuilder.buildAIVotingPrompt(
-                        recentChatHistory,
+                        game.chatHistory,
                         username,
                         corePersonalityPrompt,
                         game.generatedImages
@@ -1375,12 +1366,9 @@ async function createAIDrawing(roomCode, aiPlayerId, prompt) {
         const username = game.players.get(aiPlayerId).username;
         const corePersonalityPrompt = aiData.corePersonalityPrompt;
 
-        // Get formatted chat history for context
-        const recentChatHistory = promptBuilder.formatRecentChatHistory(game.chatHistory);
-
         // Build the AI drawing concept prompt
         const prompt = promptBuilder.buildAIDrawingConceptPrompt(
-            recentChatHistory,
+            game.chatHistory,
             username,
             corePersonalityPrompt,
             game.currentPrompt

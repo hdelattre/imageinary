@@ -777,10 +777,10 @@ function createAIPersonalitySelector(personalities, roomCode, onSelected) {
 
         // Get a brief description from the personality prompt
         let description = "";
-        if (personality.chatPrompt) {
-            // Extract first 60 characters of the chat prompt as a preview
-            description = personality.chatPrompt.substring(0, 60) +
-                (personality.chatPrompt.length > 60 ? "..." : "");
+        if (personality.corePersonalityPrompt) {
+            const previewLen = 60;
+            description = personality.corePersonalityPrompt.substring(0, previewLen) +
+                (personality.corePersonalityPrompt.length > previewLen ? "..." : "");
         } else {
             description = "Custom AI with unique personality";
         }

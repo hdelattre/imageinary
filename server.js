@@ -711,7 +711,7 @@ io.on('connection', (socket) => {
                     const newHostId = Array.from(game.players.keys())[0];
                     const newHostName = Array.from(game.players.values())[0].username;
                     console.log(`Room ${roomCode}| Host left, new host: ${newHostId}`);
-                    sendSystemMessage(roomCode, `The host has left! ${newHostName} is now the host.`);
+                    sendSystemMessage(roomCode, `The host has left! ${newHostName} is now the host.`, true);
                 }
 
                 // Update game state for remaining players if there are any
@@ -747,7 +747,7 @@ function sanitizeMessage(message, allowedPunctuation = '', maxLength = null) {
     return message.replace(regex, '');
 }
 
-function sendSystemMessage(roomCode, message) {
+function sendSystemMessage(roomCode, message, in_history = false) {
     const timestamp = new Date().toLocaleTimeString();
     const systemMessage = {
         message: message,
@@ -756,7 +756,7 @@ function sendSystemMessage(roomCode, message) {
 
     // Store system message in chat history
     const game = games.get(roomCode);
-    if (game) {
+    if (in_history && game) {
         game.chatHistory.push(systemMessage);
     }
 

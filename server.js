@@ -1342,12 +1342,7 @@ async function makeAIPlayersVote(roomCode) {
                         // Adjust vote to be 0-indexed to match the image array
                         vote = vote - 1;
                     } catch (parseError) {
-                        // If parsing fails, use a fallback method
                         console.error(`Error parsing AI vote response: ${parseError.message}`);
-
-                        // Pick a random image
-                        vote = Math.floor(Math.random() * game.generatedImages.length);
-                        message = "I like this one!";
                     }
 
                     // Get the player ID associated with the selected image
@@ -1362,19 +1357,6 @@ async function makeAIPlayersVote(roomCode) {
 
             } catch (error) {
                 console.error(`Error making AI vote: ${error.message}`);
-
-                // Fallback: make a random vote
-                if (!game.voting) return;
-
-                // Pick a random image
-                const randomIndex = Math.floor(Math.random() * game.generatedImages.length);
-                const randomImage = game.generatedImages[randomIndex];
-                const selectedImagePlayerId = randomImage.playerId;
-
-                // Send a generic message
-                sendPlayerMessage(roomCode, aiPlayerId, `My brain isn't working. I'll just pick the ${randomImage.guess}!`, false);
-
-                setPlayerVote(roomCode, aiPlayerId, selectedImagePlayerId);
             }
         }
     });

@@ -296,7 +296,77 @@ async function requestGeminiResponse(prompt, drawingData = null, textOnly = fals
     }
 }
 
+/**
+ * Process a response to extract structured data from JSON within the text
+ * @param {string} text - The text response to process
+ * @returns {Object} - The response with extracted data
+ */
+function processStructuredResponse(text) {
+    if (!text) return { text: "", data: null };
+
+    try {
+        // Find JSON object by looking for matching curly braces
+        let jsonStartIndex = -1;
+        let jsonEndIndex = -1;
+        let bracesCount = 0;
+        let inString = false;
+        let escapeNext = false;
+
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+
+            // Handle string detection with proper escape handling
+            if (char === '"' && !escapeNext) {
+                inString = !inString;
+            } else if (char === '\\' && inString) {
+                escapeNext = true;
+                continue;
+            }
+
+            escapeNext = false;
+
+            // Only count braces when not inside a string
+            if (!inString) {
+                if (char === '{') {
+                    if (bracesCount === 0) {
+                        jsonStartIndex = i;
+                    }
+                    bracesCount++;
+                } else if (char === '}') {
+                    bracesCount--;
+                    if (bracesCount === 0) {
+                        jsonEndIndex = i + 1;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // If we found a JSON object
+        if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
+            const jsonStr = text.substring(jsonStartIndex, jsonEndIndex);
+            const parsedData = JSON.parse(jsonStr);
+
+            // Remove the JSON object from the text
+            const cleanedText = text.substring(0, jsonStartIndex).trim() + " " +
+                               text.substring(jsonEndIndex).trim();
+
+            return {
+                text: cleanedText.trim(),
+                data: parsedData
+            };
+        }
+    } catch (e) {
+        // Ignore errors
+    }
+
+    // No valid JSON object found
+    console.error(`Error processing structured response: ${e.message}`);
+    return { text: text, data: null };
+}
+
 module.exports = {
     initializeGeminiService,
-    requestGeminiResponse
+    requestGeminiResponse,
+    processStructuredResponse
 };

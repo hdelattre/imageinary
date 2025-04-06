@@ -20,7 +20,7 @@ const MODELS = {
         model: null
     },
     GEMINI_1_5_FLASH: {
-        NAME: "GEMINI_1_5",
+        NAME: "GEMINI_1_5_FLASH",
         REQUESTS_PER_MINUTE: 15,
         model: null
     },

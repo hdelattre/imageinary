@@ -197,6 +197,7 @@ async function requestGeminiResponse(prompt, drawingData = null, textOnly = fals
         }
 
         if (!candidate || !candidate.content || !candidate.content.parts) {
+            console.warn(`Invalid Gemini response: ${response}`);
             throw new Error('Invalid response structure from model');
         }
 

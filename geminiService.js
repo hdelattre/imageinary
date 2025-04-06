@@ -134,7 +134,7 @@ function getImageModel() {
  * @param {boolean} textOnly - Whether to use text-only models
  * @returns {Promise<Object>} - The response with text and/or image data
  */
-async function requestGeminiResponse(prompt, drawingData = null, textOnly = false) {
+async function requestGeminiResponse(prompt, drawingData = null, textOnly = false, allowRetry = true) {
     let geminiModel;
     if (textOnly) {
         geminiModel = getTextModel();
@@ -276,6 +276,18 @@ async function requestGeminiResponse(prompt, drawingData = null, textOnly = fals
             console.log(`Model ${geminiModel.NAME} paused due to 503 service error. Unpause at: ${new Date(unpauseTime).toLocaleTimeString()}`);
 
             return requestGeminiResponse(prompt, drawingData, textOnly);
+        }
+        else if (error.status === 500) {
+            if (allowRetry) {
+                console.log(`Model ${geminiModel.NAME} encountered 500 service error. Retrying once`);
+                return requestGeminiResponse(prompt, drawingData, textOnly, false);
+            }
+            else {
+                // Pausing very briefly before we attempt this model again
+                const unpauseTime = Date.now() + 20 * 1000;
+                pausedModels.set(geminiModel.NAME, unpauseTime);
+                throw error;
+            }
         }
 
         console.error(`Gemini API error: ${error.message}`);

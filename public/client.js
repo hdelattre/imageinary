@@ -1273,6 +1273,9 @@ socket.on('connect', () => {
     if (!isInGame()) {
         restartRoomRefreshInterval();
     }
+    else {
+        addSystemMessage("✅ Reconnected to server!");
+    }
 });
 
 socket.on('disconnect', () => {

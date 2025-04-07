@@ -61,6 +61,7 @@ body {
     height: calc(100% - 20px);
     max-height: 100vh; /* Prevent expanding beyond viewport height */
     overflow-y: auto;
+    overflow-x: hidden; /* Prevent horizontal scroll */
     margin: 10px 0;
     position: relative;
 }
@@ -328,13 +329,13 @@ button:active {
 #canvas {
     border: 2px solid #555;
     background: white;
-    max-width: 100%;
+    width: 100%; /* Responsive width */
+    max-width: 600px; /* Cap at original size */
+    height: 400px;
     box-sizing: border-box;
     display: block;
     margin: 0 auto 0 auto;
     box-shadow: 0 2px 5px rgba(255, 255, 255, 0.1);
-    width: 600px;
-    height: 400px;
 }
 
 #gameInfo {
@@ -424,11 +425,13 @@ button:active {
 #chat {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 1px 6px;
     text-align: left;
     font-family: Arial, sans-serif;
     min-height: 150px;
     max-height: 350px;
+    max-width: 100%;
     color: #e0e0e0;
 }
 
@@ -436,10 +439,13 @@ button:active {
     margin: 8px 0;
     word-wrap: break-word;
     text-align: left;
-    padding-right: 10px;
+    padding-right: 0;
+    margin-right: 6px;
     border-bottom: 1px dotted #444;
     padding-bottom: 8px;
     line-height: 1.3;
+    max-width: 100%;
+    overflow-wrap: anywhere;
 }
 
 /* Guess message styling */
@@ -453,6 +459,8 @@ button:active {
     background-color: rgba(52, 152, 219, 0.05);
     border-left: 3px solid #3498db !important;
     border-bottom: 1px dotted rgba(52, 152, 219, 0.3) !important;
+    max-width: calc(100% - 13px); /* Adjust for padding + border */
+    box-sizing: border-box;
 }
 
 .guess-message::before {

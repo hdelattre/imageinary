@@ -87,6 +87,9 @@ function createGameCallbacks(roomCode) {
                 sendPlayerMessage(roomCode, playerId, message, isGuess);
             }
         },
+        sanitizeMessage: (message, allowedPunctuation = '', maxLength = null) => {
+            return sanitizeMessage(message, allowedPunctuation, maxLength);
+        },
 
         // Timers
         startTimer: (durationMs, timerType) => {
@@ -609,7 +612,7 @@ io.on('connection', (socket) => {
         if (now - lastTime < 1000) return;
         lastMessageTimes.set(socket.id, now);
 
-        message = sanitizeMessage(message, '/.?!');
+        message = sanitizeMessage(message, PROMPT_CONFIG.CHAT_CHARS);
 
         let gameHandled = false;
         let displayMessage = message;

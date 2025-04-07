@@ -793,12 +793,12 @@ class ImageinaryGame {
             );
 
             const result = await this.callbacks.requestGeminiText(prompt, drawingData);
-            const guess = result?.text?.trim();
+            let guess = result?.text?.trim();
 
             if (guess) {
                 aiData.lastGuessTime = Date.now();
-                // Use handleMessage to process the guess internally (updates lastGuesses map)
-                const handledResult = this.handleMessage(aiPlayerId, `/g ${guess}`);
+                guess = this.callbacks.sanitizeMessage(guess, PROMPT_CONFIG.CHAT_CHARS);
+                const handledResult = this.handlePlayerCommand(aiPlayerId, 'g', guess);
                 if (handledResult.handled && handledResult.isGuess) {
                     // If handled successfully, tell server to broadcast the guess message
                     this.callbacks.sendPlayerMessage(aiPlayerId, handledResult.displayMessage, true);

@@ -7,6 +7,7 @@ const PROMPT_CONFIG = {
     CORE_PERSONALITY_PROMPT: "a witty and sarcastic AI who loves to make clever remarks",
     MAX_PROMPT_LENGTH: 1024, // Maximum length of prompt in characters
     VALID_CHARS: '{}./!?-,\'',
+    CHAT_CHARS: '/.?!\'',
     MAX_AI_PLAYERS: 4, // Maximum number of AI players allowed per room
     validatePrompt: (prompt) => {
         // Check if prompt is empty

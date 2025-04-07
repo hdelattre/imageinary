@@ -220,8 +220,10 @@ function createRoom(isPublic = false) {
             localStorage.setItem('imageinary_username', username);
         }
 
+        const customPrompts = promptEditor.getCustomPrompts();
+
         // Include custom prompt when creating room (get from promptEditor)
-        socket.emit('createRoom', username, promptEditor.getCustomPrompt(), isPublic, gameType);
+        socket.emit('createRoom', username, customPrompts, isPublic, gameType);
     }
 }
 
@@ -785,7 +787,7 @@ function displayPublicRooms(rooms) {
             promptBtn.innerHTML = '<span class="icon">🔮</span>';
             promptBtn.onclick = (e) => {
                 e.stopPropagation();
-                promptEditor.showPromptModal(room.prompt);
+                promptEditor.showPromptModal(room.customPrompts);
             };
             roomControls.appendChild(promptBtn);
         }

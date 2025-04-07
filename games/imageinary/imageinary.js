@@ -64,8 +64,10 @@ class ImageinaryGame {
         this.votingDuration = (gameConfig.votingDuration || VOTING_DURATION_SECONDS) * 1000;
         this.resultsDuration = (gameConfig.resultsDuration || RESULTS_DURATION_SECONDS) * 1000;
         this.aiTiming = { ...AI_TIMING, ...(gameConfig.aiTiming || {}) };
-        // Get initial custom prompt from server config
-        this.customImageGenPrompt = gameConfig.customImageGenPrompt || PROMPT_CONFIG.IMAGE_GEN_PROMPT;
+        // Get initial custom prompts from server config
+        this.customImageGenPrompt = PROMPT_CONFIG.IMAGE_GEN_PROMPT;
+        this.customChatPrompt = PROMPT_CONFIG.CHAT_PROMPT;
+        this.customGuessPrompt = PROMPT_CONFIG.GUESS_PROMPT;
 
         console.log(`Room ${this.roomCode}| ImageinaryGame instance created.`);
 
@@ -508,7 +510,7 @@ class ImageinaryGame {
         if (this.gameState === 'drawing' && playerId !== this.currentDrawerId) {
             commandName = commandName.toLowerCase();
             if (commandName.startsWith('g')) {
-                this.lastGuesses.set(playerId, commandValue);
+                this.lastGuesses.set(playerId, commandValue)
                 console.log(`Room ${this.roomCode}| Player ${playerId} guessed: ${commandValue}`);
                 return { handled: true, displayMessage: commandValue, isGuess: true };
             }
@@ -573,16 +575,6 @@ class ImageinaryGame {
         }
     }
 
-    handleAIPlayerPersonalityUpdate(aiPlayerId, personalityData) {
-        // Currently, AI methods fetch details via callback each time.
-        // If we stored personality prompts locally on aiPlayers map, update here.
-        const aiData = this.aiPlayers.get(aiPlayerId);
-        if (aiData) {
-            console.log(`Room ${this.roomCode}| AI ${aiPlayerId} personality potentially updated (not stored locally).`);
-            // Example if stored locally: aiData.corePersonalityPrompt = personalityData.corePersonalityPrompt;
-        }
-    }
-
     // --- AI Control Methods ---
 
     scheduleAIDrawing() {
@@ -639,7 +631,7 @@ class ImageinaryGame {
             const prompt = promptBuilder.buildAIDrawingConceptPrompt(
                 chatHistory,
                 aiDetails.username,
-                aiDetails.corePersonalityPrompt // Fetched via callback
+                aiDetails.corePersonalityPrompt
             );
             const result = await this.callbacks.requestGeminiText(prompt);
             return result?.text?.trim() || null;
@@ -785,11 +777,13 @@ class ImageinaryGame {
             if (!aiDetails) throw new Error("AI details not found for guess");
             const chatHistory = await this.callbacks.getChatHistory();
 
+            const guessPrompt = this.customGuessPrompt;
+
             const prompt = promptBuilder.buildAIGuessPrompt(
                 chatHistory,
                 aiDetails.username,
                 aiDetails.corePersonalityPrompt,
-                aiDetails.guessPrompt // Use custom guess prompt if available from details
+                guessPrompt
             );
 
             const result = await this.callbacks.requestGeminiText(prompt, drawingData);
@@ -827,11 +821,13 @@ class ImageinaryGame {
             if (!aiDetails) throw new Error("AI details not found for chat");
             const chatHistory = await this.callbacks.getChatHistory();
 
+            const chatPrompt = this.customChatPrompt;
+
             const prompt = promptBuilder.buildAIChatPrompt(
                 chatHistory,
                 aiDetails.username,
                 aiDetails.corePersonalityPrompt,
-                aiDetails.chatPrompt // Use custom chat prompt if available
+                chatPrompt
             );
 
             const result = await this.callbacks.requestGeminiText(prompt, drawingData);
@@ -1009,10 +1005,16 @@ class ImageinaryGame {
         };
     }
 
-    updateCustomPrompt(newPrompt) {
-        // Update the prompt used for image generation if it changes mid-game
-        this.customImageGenPrompt = newPrompt || PROMPT_CONFIG.IMAGE_GEN_PROMPT; // Use default if empty
-        console.log(`Room ${this.roomCode}| Game logic updated custom image gen prompt.`);
+    updateCustomPrompts(prompts) {
+        if (prompts.imagePrompt) {
+            this.customImageGenPrompt = prompts.imagePrompt;
+        }
+        if (prompts.chatPrompt) {
+            this.customChatPrompt = prompts.chatPrompt;
+        }
+        if (prompts.guessPrompt) {
+            this.customGuessPrompt = prompts.guessPrompt;
+        }
     }
 
     // --- AI Timer Management ---

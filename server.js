@@ -327,7 +327,7 @@ io.on('connection', (socket) => {
         removeAIPlayer(roomCode, aiPlayerId);
     });
 
-    socket.on('createRoom', (username, customPrompt, isPublic = false, gameType = 'imageinary') => {
+    socket.on('createRoom', (username, customPrompts, isPublic = false, gameType = 'imageinary') => {
         username = sanitizeMessage(username, '', 24);
 
         const roomCode = uuidv4().slice(0, 6).toUpperCase();
@@ -336,23 +336,8 @@ io.on('connection', (socket) => {
         console.log(`Room ${roomCode}| Created by ${username}, isPublic: ${isPublic}, gameType: ${gameType}`);
 
         // Initialize the game room with specified game type
-        createRoom(roomCode, isPublic, gameType);
+        createRoom(roomCode, isPublic, gameType, customPrompts);
         const game = games.get(roomCode);
-
-        // Store custom prompt if provided (only applicable for Imageinary)
-        if (customPrompt && gameType === 'imageinary') {
-            // Validate the prompt
-            customPrompt = sanitizeMessage(customPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
-            const validation = PROMPT_CONFIG.validatePrompt(customPrompt);
-            if (validation.valid) {
-                game.roomCustomPrompt = customPrompt;
-
-                // Update the game instance with the custom prompt
-                if (game.currentGameInstance) {
-                    game.currentGameInstance.updateCustomPrompt(customPrompt);
-                }
-            }
-        }
 
         socket.emit('roomCreated', {
             roomCode,
@@ -397,7 +382,7 @@ io.on('connection', (socket) => {
     });
 
     // Endpoint to get a room's prompt and game type
-    socket.on('getRoomPrompt', (roomCode) => {
+    socket.on('getRoomPrompts', (roomCode) => {
         const game = games.get(roomCode);
         if (!game) return;
         // Check if this socket is the host (first player)
@@ -406,42 +391,29 @@ io.on('connection', (socket) => {
 
         // Return the prompt, game type, and host status in one response
         socket.emit('roomPrompt', {
-            prompt: game.roomCustomPrompt,
+            prompts: game.customPrompts,
             isHost: isHost,
             gameType: game.gameType || 'imageinary'
         });
     });
 
-    // Endpoint to update a room's prompt
-    socket.on('updateRoomPrompt', ({ roomCode, prompt }) => {
+    // Endpoint to update a room's prompts
+    socket.on('updateRoomPrompt', (roomCode, customPrompts) => {
         const game = games.get(roomCode);
         if (!game) return;
         // Verify this is the host
         const players = Array.from(game.players.keys());
         const isHost = players.length > 0 && players[0] === socket.id;
 
-        if (isHost) {
-            // Validate the prompt
-            prompt = sanitizeMessage(prompt, PROMPT_CONFIG.VALID_CHARS);
-            const validation = PROMPT_CONFIG.validatePrompt(prompt);
-            if (validation.valid) {
-                // Update the room's custom prompt
-                game.roomCustomPrompt = prompt;
+        if (isHost && customPrompts) {
+            setRoomCustomPrompts(roomCode, customPrompts);
 
-                // Update the game instance
-                game.currentGameInstance?.updateCustomPrompt(prompt);
-
-                console.log(`Room ${roomCode}| Prompt updated by host: ${game.roomCustomPrompt}`);
-
-                // If this is a public room, update the public room list
-                if (game.isPublic) {
-                    updatePublicRoomsList(roomCode);
-                }
-            } else {
-                console.log(`Room ${roomCode}| Invalid prompt submitted by host - ${validation.error}`);
+            if (game.isPublic) {
+                updatePublicRoomsList(roomCode);
             }
         }
     });
+
 
     socket.on('testGenerateImage', async ({ drawingData, guess, promptTemplate }) => {
         try {
@@ -463,7 +435,7 @@ io.on('connection', (socket) => {
 
             // Validate the prompt template
             promptTemplate = sanitizeMessage(promptTemplate, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
-            const validation = PROMPT_CONFIG.validatePrompt(promptTemplate);
+            const validation = PROMPT_CONFIG.validatePrompt(promptTemplate, ['guess']);
             if (!validation.valid) {
                 socket.emit('testImageResult', { error: 'Invalid prompt template: ' + validation.error });
                 return;
@@ -695,7 +667,7 @@ io.on('connection', (socket) => {
     });
 
     // Update AI player personality
-    socket.on('updateAIPlayer', ({ roomCode, aiPlayerId, corePersonalityPrompt, chatPrompt, guessPrompt }) => {
+    socket.on('updateAIPlayer', ({ roomCode, aiPlayerId, corePersonalityPrompt }) => {
         const game = games.get(roomCode);
         if (!game) {
             socket.emit('aiPlayerUpdated', { success: false, error: 'Room not found' });
@@ -728,36 +700,7 @@ io.on('connection', (socket) => {
             }
         }
 
-        // For chat prompt
-        if (chatPrompt) {
-            const sanitized = sanitizeMessage(chatPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
-            // Check if it matches the default (null it if it does)
-            if (sanitized === promptBuilder.DEFAULT_CHAT_PROMPT) {
-                aiData.chatPrompt = null;
-            } else {
-                aiData.chatPrompt = sanitized;
-            }
-        }
-
-        // For guess prompt
-        if (guessPrompt) {
-            const sanitized = sanitizeMessage(guessPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
-            // Check if it matches the default (null it if it does)
-            if (sanitized === PROMPT_CONFIG.GUESS_PROMPT) {
-                aiData.guessPrompt = null;
-            } else {
-                aiData.guessPrompt = sanitized;
-            }
-        }
-
         console.log(`Room ${roomCode}| AI player ${aiPlayerId} personality updated`);
-
-        // Notify the game instance about the personality update
-        game.currentGameInstance?.handleAIPlayerPersonalityUpdate(aiPlayerId, {
-            corePersonalityPrompt: aiData.corePersonalityPrompt,
-            chatPrompt: aiData.chatPrompt,
-            guessPrompt: aiData.guessPrompt
-        });
 
         // Send success response
         socket.emit('aiPlayerUpdated', { success: true });
@@ -1005,7 +948,7 @@ function getRandomColor() {
     return colors[Math.floor(Math.random() * colors.length)];
 }
 
-function createRoom(roomCode, isPublic = false, gameType = 'imageinary') {
+function createRoom(roomCode, isPublic = false, gameType = 'imageinary', customPrompts = null) {
     // Initialize game room data
     const gameRoomData = {
         players: new Map(),  // Master player list
@@ -1013,11 +956,11 @@ function createRoom(roomCode, isPublic = false, gameType = 'imageinary') {
         currentGameInstance: null,  // Will hold game instance (Imageinary or Zoob)
         isPublic: isPublic,
         createdAt: Date.now(),
+        customPrompts: {},
         emptyRoomTimestamp: null,  // Track when the room becomes empty
         singlePlayerTimestamp: null,  // Track when the room has only one player
         chatHistory: [],  // Keep chat history at room level
         aiPlayers: new Map(),  // Store AI player metadata (ID -> data)
-        roomCustomPrompt: PROMPT_CONFIG.IMAGE_GEN_PROMPT,  // Default prompt for image generation
         activeTimers: new Map(),  // For tracking server-managed timers
         timerEndTimes: new Map()  // For tracking timer end times
     };
@@ -1027,36 +970,30 @@ function createRoom(roomCode, isPublic = false, gameType = 'imageinary') {
     // Create callback functions for game instance
     const callbacks = createGameCallbacks(roomCode);
 
-    if (callbacks) {
-        // Create the game instance based on type
-        if (gameType === 'zoob') {
-            gameRoomData.currentGameInstance = new ZoobGame(
-                roomCode,
-                io,
-                gameRoomData.players,  // Pass initial player map (empty at this point)
-                {  // Pass game config
-                    imageStyle: "fantasy illustration",
-                    // Add other config overrides here if needed
-                },
-                callbacks
-            );
-            console.log(`Room ${roomCode}| Instantiated ZoobGame.`);
-        } else {
-            // Default to Imageinary game
-            gameRoomData.currentGameInstance = new ImageinaryGame(
-                roomCode,
-                io,
-                gameRoomData.players,  // Pass initial player map (empty at this point)
-                {  // Pass game config
-                    customImageGenPrompt: gameRoomData.roomCustomPrompt
-                    // Add other config overrides here if needed
-                },
-                callbacks
-            );
-            console.log(`Room ${roomCode}| Instantiated ImageinaryGame.`);
-        }
+    // Create the game instance based on type
+    if (gameType === 'zoob') {
+        gameRoomData.currentGameInstance = new ZoobGame(
+            roomCode,
+            io,
+            gameRoomData.players,
+            {}, // Default GameConfig
+            callbacks
+        );
+        console.log(`Room ${roomCode}| Instantiated ZoobGame.`);
     } else {
-        console.error(`Room ${roomCode}| Failed to create game callbacks.`);
+        // Default to Imageinary game
+        gameRoomData.currentGameInstance = new ImageinaryGame(
+            roomCode,
+            io,
+            gameRoomData.players,
+            {}, // Default GameConfig
+            callbacks
+        );
+        console.log(`Room ${roomCode}| Instantiated ImageinaryGame.`);
+    }
+
+    if (customPrompts) {
+        setRoomCustomPrompts(roomCode, customPrompts);
     }
 }
 
@@ -1079,6 +1016,23 @@ function deleteRoom(roomCode) {
     games.delete(roomCode);
     drawings.delete(roomCode);
     publicRooms.delete(roomCode);
+}
+
+function setRoomCustomPrompts(roomCode, prompts) {
+    const game = games.get(roomCode);
+    if (!game) return;
+
+    for (const [key, value] of Object.entries(prompts)) {
+        const sanitized = sanitizeMessage(value, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+        const requiredPlaceholders = key === 'imagePrompt' ? ['guess'] : [];
+        const validation = PROMPT_CONFIG.validatePrompt(sanitized, requiredPlaceholders);
+        if (validation.valid) {
+            game.customPrompts[key] = sanitized;
+        } else {
+            console.log(`Room ${roomCode}| Invalid ${key}: ${validation.error}`);
+        }
+    }
+    game.currentGameInstance?.updateCustomPrompts(game.customPrompts);
 }
 
 function addPlayer(game, playerId, username) {
@@ -1243,8 +1197,8 @@ function updatePublicRoomsList(roomCode) {
         round: game.currentGameInstance?.round || 1,
         createdAt: game.createdAt,
         hostName: hostName,
-        prompt: game.roomCustomPrompt,
-        gameType: game.gameType || 'imageinary'
+        customPrompts: game.customPrompts,
+        gameType: game.gameType
     };
 
     publicRooms.set(roomCode, roomInfo);

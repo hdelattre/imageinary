@@ -896,22 +896,23 @@ button:active {
     width: 100%;
     padding: 10px;
     border-radius: 4px;
-    border: 1px solid #ccc;
+    border: 1px solid #444;
     font-size: 16px;
-    background-color: #fff;
+    background-color: #333;
+    color: #e0e0e0;
 }
 
 #aiPersonalityFormContainer {
-    border: 1px solid #ddd;
+    border: 1px solid #444;
     border-radius: 8px;
     padding: 20px;
-    background-color: #f9f9f9;
+    background-color: #2a2a2a;
 }
 
 #aiPersonalityFormContainer h4 {
     margin-top: 0;
     margin-bottom: 15px;
-    color: #333;
+    color: #e0e0e0;
 }
 
 .form-group {
@@ -928,9 +929,11 @@ button:active {
 .form-group textarea {
     width: 100%;
     padding: 10px;
-    border: 1px solid #ccc;
+    border: 1px solid #444;
     border-radius: 4px;
     font-size: 14px;
+    background-color: #333;
+    color: #e0e0e0;
 }
 
 .form-group textarea {
@@ -941,7 +944,7 @@ button:active {
 .form-hint {
     margin-top: 5px;
     font-size: 12px;
-    color: #666;
+    color: #999;
     font-style: italic;
 }
 

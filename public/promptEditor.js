@@ -1,23 +1,28 @@
 // Prompt Editor Module
-let customPrompt = localStorage.getItem('imageinary_custom_prompt') || PROMPT_CONFIG.IMAGE_GEN_PROMPT;
+let imagePrompt = localStorage.getItem('imageinary_image_prompt') || PROMPT_CONFIG.IMAGE_GEN_PROMPT;
+let chatPrompt = localStorage.getItem('imageinary_chat_prompt') || PROMPT_CONFIG.CHAT_PROMPT;
+let guessPrompt = localStorage.getItem('imageinary_guess_prompt') || PROMPT_CONFIG.GUESS_PROMPT;
 let isEditingRoomPrompt = false;
 
 // Function to open prompt editor with a specific prompt
-function openPromptEditorWithPrompt(prompt) {
-    // Hide the view prompt button while the editor is open
+function openPromptEditorWithPrompt(prompts) {
     const viewPromptBtn = document.getElementById('viewPromptBtn');
     if (viewPromptBtn) {
         viewPromptBtn.style.display = 'none';
     }
 
     const promptTemplate = document.getElementById('promptTemplate');
+    const chatPromptTemplate = document.getElementById('chatPromptTemplate');
+    const guessPromptTemplate = document.getElementById('guessPromptTemplate');
 
-    // Save the current room prompt for reference
-    window.currentRoomPrompt = prompt;
+    // Save the current room prompts for reference
+    window.currentRoomPrompts = prompts; // Store all prompts
     isEditingRoomPrompt = true;
 
-    // Set initial value
-    promptTemplate.value = prompt;
+    // Set initial values
+    promptTemplate.value = prompts.imagePrompt || PROMPT_CONFIG.IMAGE_GEN_PROMPT;
+    chatPromptTemplate.value = prompts.chatPrompt || PROMPT_CONFIG.CHAT_PROMPT;
+    guessPromptTemplate.value = prompts.guessPrompt || PROMPT_CONFIG.GUESS_PROMPT;
     document.getElementById('promptEditorModal').style.display = 'flex';
 }
 
@@ -25,9 +30,8 @@ function closePromptEditor() {
     document.getElementById('promptEditorModal').style.display = 'none';
 }
 
-// Function to save the current prompt (handles both regular and room prompts)
+// Function to save the current prompts (handles both regular and room prompts)
 function savePrompt() {
-    // Verify socket is available
     if (isEditingRoomPrompt && !socket) {
         console.error('PromptEditor expected socket connection and cannot update room prompt.');
         return false;
@@ -36,10 +40,12 @@ function savePrompt() {
     const saveBtn = document.getElementById('savePromptBtn');
     const originalText = saveBtn.textContent;
     const promptValue = document.getElementById('promptTemplate').value.trim();
-    const validation = PROMPT_CONFIG.validatePrompt(promptValue);
+    const chatPromptValue = document.getElementById('chatPromptTemplate').value.trim();
+    const guessPromptValue = document.getElementById('guessPromptTemplate').value.trim();
+    const requiredPlaceholders = isEditingRoomPrompt ? ['guess'] : [];
+    const validation = PROMPT_CONFIG.validatePrompt(promptValue, requiredPlaceholders);
 
     if (!validation.valid) {
-        // Show error message
         saveBtn.textContent = 'Error: ' + validation.error;
         saveBtn.style.backgroundColor = '#e74c3c';
         setTimeout(() => {
@@ -49,13 +55,14 @@ function savePrompt() {
         return false;
     }
 
-    // If editing a room prompt, update it on the server
     if (isEditingRoomPrompt) {
         const roomCode = document.getElementById('currentRoom').textContent;
-        // Send the updated prompt to the server
-        socket.emit('updateRoomPrompt', { roomCode, prompt: promptValue });
+        socket.emit('updateRoomPrompt', roomCode, {
+            imagePrompt: promptValue,
+            chatPrompt: chatPromptValue,
+            guessPrompt: guessPromptValue
+        });
 
-        // Show success feedback on the view prompt button
         const viewPromptBtn = document.getElementById('viewPromptBtn');
         if (viewPromptBtn) {
             const btnOriginalBg = viewPromptBtn.style.backgroundColor;
@@ -64,25 +71,24 @@ function savePrompt() {
                 viewPromptBtn.style.backgroundColor = btnOriginalBg;
             }, 2000);
         }
-    }
-    else {
-        // Update local storage for future games
-        customPrompt = promptValue;
-        localStorage.setItem('imageinary_custom_prompt', promptValue);
+    } else {
+        imagePrompt = promptValue;
+        chatPrompt = chatPromptValue;
+        guessPrompt = guessPromptValue;
+        localStorage.setItem('imageinary_image_prompt', promptValue);
+        localStorage.setItem('imageinary_chat_prompt', chatPromptValue);
+        localStorage.setItem('imageinary_guess_prompt', guessPromptValue);
     }
 
-    // Show success feedback
-    saveBtn.textContent = isEditingRoomPrompt ? 'Room Prompt Updated!' : 'Saved Successfully!';
+    saveBtn.textContent = isEditingRoomPrompt ? 'Room Prompts Updated!' : 'Saved Successfully!';
     saveBtn.style.backgroundColor = '#4CAF50';
     setTimeout(() => {
         saveBtn.textContent = originalText;
         saveBtn.style.backgroundColor = '';
     }, 2000);
 
-    // Close the modal
     closePromptEditor();
 
-    // Show the view prompt button again when saving
     if (isEditingRoomPrompt) {
         const viewPromptBtn = document.getElementById('viewPromptBtn');
         if (viewPromptBtn) {
@@ -93,25 +99,32 @@ function savePrompt() {
     return true;
 }
 
-// Function to reset prompt to appropriate value
+// Function to reset prompts to appropriate values
 function resetPrompt() {
     const resetBtn = document.getElementById('resetPromptBtn');
     const originalText = resetBtn.textContent;
     const promptTemplate = document.getElementById('promptTemplate');
+    const chatPromptTemplate = document.getElementById('chatPromptTemplate');
+    const guessPromptTemplate = document.getElementById('guessPromptTemplate');
 
-    // If we're editing a room prompt, use the saved room prompt
-    if (isEditingRoomPrompt && window.currentRoomPrompt) {
-        promptTemplate.value = window.currentRoomPrompt;
-        resetBtn.textContent = 'Reset to Room Prompt';
+    if (isEditingRoomPrompt && window.currentRoomPrompts) {
+        promptTemplate.value = window.currentRoomPrompts.imagePrompt || PROMPT_CONFIG.IMAGE_GEN_PROMPT;
+        chatPromptTemplate.value = window.currentRoomPrompts.chatPrompt || PROMPT_CONFIG.CHAT_PROMPT;
+        guessPromptTemplate.value = window.currentRoomPrompts.guessPrompt || PROMPT_CONFIG.GUESS_PROMPT;
+        resetBtn.textContent = 'Reset to Room Prompts';
     } else {
-        // Otherwise use the default prompt
         promptTemplate.value = PROMPT_CONFIG.IMAGE_GEN_PROMPT;
-        customPrompt = PROMPT_CONFIG.IMAGE_GEN_PROMPT;
-        localStorage.setItem('imageinary_custom_prompt', PROMPT_CONFIG.IMAGE_GEN_PROMPT);
+        chatPromptTemplate.value = PROMPT_CONFIG.CHAT_PROMPT;
+        guessPromptTemplate.value = PROMPT_CONFIG.GUESS_PROMPT;
+        imagePrompt = PROMPT_CONFIG.IMAGE_GEN_PROMPT;
+        chatPrompt = PROMPT_CONFIG.CHAT_PROMPT;
+        guessPrompt = PROMPT_CONFIG.GUESS_PROMPT;
+        localStorage.setItem('imageinary_image_prompt', PROMPT_CONFIG.IMAGE_GEN_PROMPT);
+        localStorage.setItem('imageinary_chat_prompt', PROMPT_CONFIG.CHAT_PROMPT);
+        localStorage.setItem('imageinary_guess_prompt', PROMPT_CONFIG.GUESS_PROMPT);
         resetBtn.textContent = 'Reset Successfully!';
     }
 
-    // Show success feedback
     resetBtn.style.backgroundColor = '#4CAF50';
     setTimeout(() => {
         resetBtn.textContent = originalText;
@@ -125,7 +138,7 @@ function initPromptEditor() {
         return;
     }
 
-    // Setup socket
+    // Setup socket handlers
     socket.on('testImageResult', (data) => {
         if (data.error) {
             document.getElementById('testImageContainer').innerHTML = `<div class="error">${data.error}</div>`;
@@ -137,15 +150,76 @@ function initPromptEditor() {
     socket.on('roomPrompt', (data) => {
         console.log('Received room prompt data:', data);
         if (data.isHost) {
-            openPromptEditorWithPrompt(data.prompt);
+            openPromptEditorWithPrompt(data.prompts);
         } else {
-            showPromptModal(data.prompt);
+            showPromptModal(data.prompts);
         }
     });
 
-    // Set initial prompt in the editor (ensure it's within length limit)
-    const promptTemplate = document.getElementById('promptTemplate');
-    promptTemplate.value = customPrompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+    // Add chat and guess prompt sections directly to the modal
+    const promptEditorContent = document.querySelector('.modal-content.prompt-editor');
+    if (promptEditorContent) {
+        // Chat Prompt Section
+        const chatPromptSection = document.createElement('div');
+        chatPromptSection.id = 'chatPromptSection';
+        chatPromptSection.className = 'form-group';
+
+        const chatPromptLabel = document.createElement('label');
+        chatPromptLabel.setAttribute('for', 'chatPromptTemplate');
+        chatPromptLabel.textContent = 'Chat Prompt:';
+        chatPromptSection.appendChild(chatPromptLabel);
+
+        const chatPromptTextarea = document.createElement('textarea');
+        chatPromptTextarea.id = 'chatPromptTemplate';
+        chatPromptTextarea.className = 'prompt-textarea';
+        chatPromptTextarea.rows = 5;
+        chatPromptTextarea.placeholder = 'Enter chat prompt template';
+        chatPromptTextarea.value = chatPrompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+        chatPromptSection.appendChild(chatPromptTextarea);
+
+        const chatPromptHint = document.createElement('p');
+        chatPromptHint.className = 'form-hint';
+        chatPromptHint.textContent = 'This prompt controls how AI players behave when chatting';
+        chatPromptSection.appendChild(chatPromptHint);
+
+        // Guess Prompt Section
+        const guessPromptSection = document.createElement('div');
+        guessPromptSection.id = 'guessPromptSection';
+        guessPromptSection.className = 'form-group';
+
+        const guessPromptLabel = document.createElement('label');
+        guessPromptLabel.setAttribute('for', 'guessPromptTemplate');
+        guessPromptLabel.textContent = 'Guess Prompt:';
+        guessPromptSection.appendChild(guessPromptLabel);
+
+        const guessPromptTextarea = document.createElement('textarea');
+        guessPromptTextarea.id = 'guessPromptTemplate';
+        guessPromptTextarea.className = 'prompt-textarea';
+        guessPromptTextarea.rows = 5;
+        guessPromptTextarea.placeholder = 'Enter guess prompt template';
+        guessPromptTextarea.value = guessPrompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+        guessPromptSection.appendChild(guessPromptTextarea);
+
+        const guessPromptHint = document.createElement('p');
+        guessPromptHint.className = 'form-hint';
+        guessPromptHint.textContent = 'This prompt controls how AI players make guesses';
+        guessPromptSection.appendChild(guessPromptHint);
+
+        // Insert chat and guess sections before the existing image prompt section
+        const existingPromptSection = promptEditorContent.querySelector('.form-group'); // Assuming the image prompt is the first form-group
+        if (existingPromptSection) {
+            promptEditorContent.insertBefore(chatPromptSection, existingPromptSection);
+            promptEditorContent.insertBefore(guessPromptSection, existingPromptSection);
+        } else {
+            // Fallback: append if no existing section found (shouldn't happen if HTML is correct)
+            promptEditorContent.insertBefore(chatPromptSection, promptEditorContent.querySelector('.button-row'));
+            promptEditorContent.insertBefore(guessPromptSection, promptEditorContent.querySelector('.button-row'));
+        }
+
+        // Set initial image prompt value
+        const promptTemplate = document.getElementById('promptTemplate');
+        promptTemplate.value = imagePrompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+    }
 
     // Setup test canvas
     const testCanvas = document.getElementById('testCanvas');
@@ -159,25 +233,25 @@ function initPromptEditor() {
 
     // Event handlers for the prompt editor
     document.getElementById('promptEditorBtn').addEventListener('click', () => {
-        // Reset flag - this is just the regular prompt editor, not a room prompt
         isEditingRoomPrompt = false;
-        promptTemplate.value = customPrompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+        const promptTemplate = document.getElementById('promptTemplate');
+        const chatPromptTemplate = document.getElementById('chatPromptTemplate');
+        const guessPromptTemplate = document.getElementById('guessPromptTemplate');
+        promptTemplate.value = imagePrompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+        chatPromptTemplate.value = chatPrompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
+        guessPromptTemplate.value = guessPrompt.slice(0, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
         document.getElementById('promptEditorModal').style.display = 'flex';
     });
 
     document.getElementById('closePromptEditorBtn').addEventListener('click', () => {
         document.getElementById('promptEditorModal').style.display = 'none';
-        // Reset the editing state
         isEditingRoomPrompt = false;
-
-        // Show the view prompt button again when the editor is closed
         const viewPromptBtn = document.getElementById('viewPromptBtn');
         if (viewPromptBtn) {
             viewPromptBtn.style.display = '';
         }
     });
 
-    // Unified handlers for both regular and room prompts
     document.getElementById('savePromptBtn').addEventListener('click', savePrompt);
     document.getElementById('resetPromptBtn').addEventListener('click', resetPrompt);
 
@@ -214,7 +288,6 @@ function initPromptEditor() {
         testDrawing = false;
     });
 
-    // Touch events for test canvas
     testCanvas.addEventListener('touchstart', handleTestTouchStart, { passive: false });
     testCanvas.addEventListener('touchmove', handleTestTouchMove, { passive: false });
     testCanvas.addEventListener('touchend', handleTestTouchEnd, { passive: false });
@@ -252,7 +325,6 @@ function initPromptEditor() {
         testDrawing = false;
     }
 
-    // Test buttons and generation
     document.getElementById('testClearBtn').addEventListener('click', () => {
         testCtx.fillStyle = 'white';
         testCtx.fillRect(0, 0, testCanvas.width, testCanvas.height);
@@ -260,7 +332,6 @@ function initPromptEditor() {
     });
 
     document.getElementById('testGenerateBtn').addEventListener('click', () => {
-        // Verify socket is available
         if (!socket) {
             console.error('Socket not initialized. Cannot generate test image.');
             alert('Connection error. Please try again later.');
@@ -274,46 +345,35 @@ function initPromptEditor() {
         }
 
         const drawingData = testCanvas.toDataURL();
-        const promptToUse = promptTemplate.value.trim();
-
-        if (!promptToUse.includes('{guess}')) {
-            alert('Prompt must include {guess} placeholder!');
+        const promptToUse = document.getElementById('promptTemplate').value.trim();
+        const validation = PROMPT_CONFIG.validatePrompt(promptToUse, ['guess']);
+        if (!validation.valid) {
+            alert('Invalid prompt: ' + validation.error);
             return;
         }
 
-        // Show loading indicator
         document.getElementById('testImageContainer').innerHTML = '<div class="loading">Generating image...</div>';
-
-        // Send to server for test generation
-        socket.emit('testGenerateImage', {
-            drawingData,
-            guess,
-            promptTemplate: promptToUse
-        });
+        socket.emit('testGenerateImage', { drawingData, guess, promptTemplate: promptToUse });
     });
 }
 
-// -- Prompt display only modal --
-function showPromptModal(promptText) {
-    // Hide the view prompt button while the modal is open
+// Prompt display only modal
+function showPromptModal(prompts) {
     const viewPromptBtn = document.getElementById('viewPromptBtn');
     if (viewPromptBtn) {
         viewPromptBtn.style.display = 'none';
     }
 
     const viewPromptText = document.getElementById('viewPromptText');
-    viewPromptText.textContent = promptText;
+    viewPromptText.textContent = `Image Prompt: ${prompts.imagePrompt || ""}\nChat Prompt: ${prompts.chatPrompt || ""}\nGuess Prompt: ${prompts.guessPrompt || ""}`;
     document.getElementById('promptViewModal').style.display = 'flex';
 }
 
 function setupPromptViewHandlers() {
-    // Set up the prompt view modal close functionality
     const closePromptViewBtn = document.getElementById('closePromptViewBtn');
     if (closePromptViewBtn) {
         closePromptViewBtn.addEventListener('click', () => {
             document.getElementById('promptViewModal').style.display = 'none';
-
-            // Show the view prompt button again when the modal is closed
             const viewPromptBtn = document.getElementById('viewPromptBtn');
             if (viewPromptBtn) {
                 viewPromptBtn.style.display = '';
@@ -322,7 +382,6 @@ function setupPromptViewHandlers() {
     }
 }
 
-// Function to view or edit room prompt
 function viewRoomPrompt() {
     if (!socket) {
         console.error('Socket not initialized. Cannot get room prompt.');
@@ -330,17 +389,13 @@ function viewRoomPrompt() {
     }
 
     const roomCode = document.getElementById('currentRoom').textContent;
-    // Get room prompt with host check included
-    socket.emit('getRoomPrompt', roomCode);
+    socket.emit('getRoomPrompts', roomCode);
 }
 
-// Export the public functions
 window.addEventListener('load', () => {
-    // Setup prompt view handler when the page loads
     setupPromptViewHandlers();
 });
 
-// Export functions to global scope
 window.promptEditor = {
     initPromptEditor,
     savePrompt,
@@ -348,5 +403,5 @@ window.promptEditor = {
     openPromptEditorWithPrompt,
     showPromptModal,
     viewRoomPrompt,
-    getCustomPrompt: () => customPrompt
+    getCustomPrompts: () => ({ imagePrompt, chatPrompt, guessPrompt })
 };

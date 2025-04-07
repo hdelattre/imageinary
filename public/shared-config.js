@@ -6,10 +6,10 @@ const PROMPT_CONFIG = {
     CHAT_PROMPT: "You're playing a drawing game with friends. Look at this drawing and the chat history, then send a single casual, funny message as if you're a player. Don't guess what the drawing is. Instead, comment on the drawing process, react to other messages, or make a light joke. But surprising and sometimes controversial. Respond with your only chat message and nothing else.",
     CORE_PERSONALITY_PROMPT: "a witty and sarcastic AI who loves to make clever remarks",
     MAX_PROMPT_LENGTH: 1024, // Maximum length of prompt in characters
-    VALID_CHARS: '{}./!?-,\'',
+    VALID_CHARS: '{}./!?-,\'\"',
     CHAT_CHARS: '/.?!\'',
     MAX_AI_PLAYERS: 4, // Maximum number of AI players allowed per room
-    validatePrompt: (prompt) => {
+    validatePrompt: (prompt, requiredPlaceholders = []) => {
         // Check if prompt is empty
         if (!prompt) {
             return {
@@ -18,12 +18,14 @@ const PROMPT_CONFIG = {
             };
         }
 
-        // Check if prompt includes the {guess} placeholder
-        if (!prompt.includes('{guess}')) {
-            return {
-                valid: false,
-                error: 'Missing {guess} placeholder'
-            };
+        // Check for required placeholders
+        for (const placeholder of requiredPlaceholders) {
+            if (!prompt.includes(`{${placeholder}}`)) {
+                return {
+                    valid: false,
+                    error: `Missing {${placeholder}} placeholder`
+                };
+            }
         }
 
         // Check if prompt exceeds maximum length

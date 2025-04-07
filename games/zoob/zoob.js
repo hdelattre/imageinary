@@ -69,8 +69,6 @@ class ZoobGame {
         // Add other config if needed (e.g., image style)
         this.imageStyle = gameConfig.imageStyle || "fantasy illustration"; // Default style
 
-        console.log(`Room ${this.roomCode}| ZoobGame instance created.`);
-
         // Initialize players
         initialPlayers.forEach((playerData, playerId) => {
             this.addPlayer(playerId, playerData);
@@ -80,10 +78,16 @@ class ZoobGame {
         setTimeout(() => this.initializeGame(), 100);
     }
 
+    updateCustomPrompts(prompts) {
+        if (prompts.worldDescription) {
+            this.worldDescription = prompts.worldDescription;
+        }
+    }
+
     // --- Core Game Flow Methods ---
 
     async initializeGame() {
-        console.log(`Room ${this.roomCode}| Initializing  Zoob...`);
+        console.log(`Room ${this.roomCode}| Initializing Zoob...`);
         // Prevent re-initialization
         if (this.gameState !== 'initializing') {
             console.log(`Room ${this.roomCode}| Initialization already completed or in progress.`);

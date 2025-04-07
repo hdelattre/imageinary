@@ -156,53 +156,7 @@ function createEditorUI() {
 
     createNewForm.appendChild(coreGroup);
 
-    // Chat prompt group
-    const chatGroup = document.createElement('div');
-    chatGroup.className = 'form-group';
 
-    const chatLabel = document.createElement('label');
-    chatLabel.setAttribute('for', 'newAIChatPrompt');
-    chatLabel.textContent = 'Chat Personality Prompt:';
-    chatGroup.appendChild(chatLabel);
-
-    const chatTextarea = document.createElement('textarea');
-    chatTextarea.id = 'newAIChatPrompt';
-    chatTextarea.rows = 5;
-    chatTextarea.placeholder = 'Enter chat prompt for AI personality';
-    // Default chat prompt
-    chatTextarea.value = PROMPT_CONFIG.CHAT_PROMPT;
-    chatGroup.appendChild(chatTextarea);
-
-    const chatHint = document.createElement('p');
-    chatHint.className = 'form-hint';
-    chatHint.textContent = 'This prompt controls how the AI behaves when chatting (not guessing)';
-    chatGroup.appendChild(chatHint);
-
-    createNewForm.appendChild(chatGroup);
-
-    // Guess prompt group
-    const guessGroup = document.createElement('div');
-    guessGroup.className = 'form-group';
-
-    const guessLabel = document.createElement('label');
-    guessLabel.setAttribute('for', 'newAIGuessPrompt');
-    guessLabel.textContent = 'Guess Personality Prompt:';
-    guessGroup.appendChild(guessLabel);
-
-    const guessTextarea = document.createElement('textarea');
-    guessTextarea.id = 'newAIGuessPrompt';
-    guessTextarea.rows = 5;
-    guessTextarea.placeholder = 'Enter guess prompt for AI personality';
-    // Default guess prompt
-    guessTextarea.value = PROMPT_CONFIG.GUESS_PROMPT;
-    guessGroup.appendChild(guessTextarea);
-
-    const guessHint = document.createElement('p');
-    guessHint.className = 'form-hint';
-    guessHint.textContent = 'This prompt controls how the AI makes guesses';
-    guessGroup.appendChild(guessHint);
-
-    createNewForm.appendChild(guessGroup);
 
     // Cancel button
     const cancelBtn = document.createElement('button');
@@ -259,49 +213,6 @@ function createEditorUI() {
 
     existingForm.appendChild(existingCoreGroup);
 
-    // Chat prompt group
-    const existingChatGroup = document.createElement('div');
-    existingChatGroup.className = 'form-group';
-
-    const existingChatLabel = document.createElement('label');
-    existingChatLabel.setAttribute('for', 'aiChatPrompt');
-    existingChatLabel.textContent = 'Chat Personality Prompt:';
-    existingChatGroup.appendChild(existingChatLabel);
-
-    const existingChatTextarea = document.createElement('textarea');
-    existingChatTextarea.id = 'aiChatPrompt';
-    existingChatTextarea.rows = 5;
-    existingChatTextarea.placeholder = 'Enter chat prompt for AI personality';
-    existingChatGroup.appendChild(existingChatTextarea);
-
-    const existingChatHint = document.createElement('p');
-    existingChatHint.className = 'form-hint';
-    existingChatHint.textContent = 'This prompt controls how the AI behaves when chatting (not guessing)';
-    existingChatGroup.appendChild(existingChatHint);
-
-    existingForm.appendChild(existingChatGroup);
-
-    // Guess prompt group
-    const existingGuessGroup = document.createElement('div');
-    existingGuessGroup.className = 'form-group';
-
-    const existingGuessLabel = document.createElement('label');
-    existingGuessLabel.setAttribute('for', 'aiGuessPrompt');
-    existingGuessLabel.textContent = 'Guess Personality Prompt:';
-    existingGuessGroup.appendChild(existingGuessLabel);
-
-    const existingGuessTextarea = document.createElement('textarea');
-    existingGuessTextarea.id = 'aiGuessPrompt';
-    existingGuessTextarea.rows = 5;
-    existingGuessTextarea.placeholder = 'Enter guess prompt for AI personality';
-    existingGuessGroup.appendChild(existingGuessTextarea);
-
-    const existingGuessHint = document.createElement('p');
-    existingGuessHint.className = 'form-hint';
-    existingGuessHint.textContent = 'This prompt controls how the AI makes guesses';
-    existingGuessGroup.appendChild(existingGuessHint);
-
-    existingForm.appendChild(existingGuessGroup);
 
     formContainer.appendChild(existingForm);
     editorContainer.appendChild(formContainer);
@@ -515,10 +426,8 @@ function showExistingAIForm(aiPlayerId) {
     const existingAIForm = document.getElementById('existingAIForm');
     const aiPlayerName = document.getElementById('aiPlayerName');
     const aiCorePrompt = document.getElementById('aiCorePrompt');
-    const aiChatPrompt = document.getElementById('aiChatPrompt');
-    const aiGuessPrompt = document.getElementById('aiGuessPrompt');
 
-    if (!formContainer || !createNewForm || !existingAIForm || !aiPlayerName || !aiCorePrompt || !aiChatPrompt || !aiGuessPrompt) return;
+    if (!formContainer || !createNewForm || !existingAIForm || !aiPlayerName || !aiCorePrompt) return;
 
     // Show existing AI form
     createNewForm.style.display = 'none';
@@ -542,8 +451,6 @@ function showExistingAIForm(aiPlayerId) {
     }
 
     aiCorePrompt.value = aiPlayer.corePersonalityPrompt || PROMPT_CONFIG.CORE_PERSONALITY_PROMPT;
-    aiChatPrompt.value = aiPlayer.chatPrompt || PROMPT_CONFIG.CHAT_PROMPT;
-    aiGuessPrompt.value = aiPlayer.guessPrompt || PROMPT_CONFIG.GUESS_PROMPT;
 }
 
 // Save AI personality locally
@@ -553,8 +460,6 @@ function saveLocalAIPersonality() {
     if (selectedAI === 'create_new') {
         // Creating a new AI personality
         const newAIName = document.getElementById('newAIName').value.trim();
-        const newAIChatPrompt = document.getElementById('newAIChatPrompt').value.trim();
-        const newAIGuessPrompt = document.getElementById('newAIGuessPrompt').value.trim();
 
         if (!newAIName) {
             showNotification('Please enter a name for the new AI player', 'error');
@@ -567,9 +472,7 @@ function saveLocalAIPersonality() {
         // Create new local personality
         const newPersonality = {
             name: newAIName,
-            corePersonalityPrompt: newAICorePrompt != PROMPT_CONFIG.CORE_PERSONALITY_PROMPT ? newAICorePrompt : null,
-            chatPrompt: newAIChatPrompt != PROMPT_CONFIG.CHAT_PROMPT ? newAIChatPrompt : null,
-            guessPrompt: newAIGuessPrompt != PROMPT_CONFIG.GUESS_PROMPT ? newAIGuessPrompt : null
+            corePersonalityPrompt: newAICorePrompt != PROMPT_CONFIG.CORE_PERSONALITY_PROMPT ? newAICorePrompt : null
         };
 
         // Add to saved personalities
@@ -584,14 +487,10 @@ function saveLocalAIPersonality() {
         const index = parseInt(selectedAI.replace('saved-', ''));
         if (index >= 0 && index < savedPersonalities.length) {
             const aiCorePrompt = document.getElementById('aiCorePrompt').value.trim();
-            const aiChatPrompt = document.getElementById('aiChatPrompt').value.trim();
-            const aiGuessPrompt = document.getElementById('aiGuessPrompt').value.trim();
 
             // Update the saved personality
             // Ensure corePersonalityPrompt exists on older saved personalities
             savedPersonalities[index].corePersonalityPrompt = aiCorePrompt || "a witty and sarcastic AI who loves to make clever remarks";
-            savedPersonalities[index].chatPrompt = aiChatPrompt;
-            savedPersonalities[index].guessPrompt = aiGuessPrompt;
             savePersonalitiesToStorage();
 
             showNotification('AI personality updated successfully!', 'success');
@@ -616,8 +515,6 @@ function saveAIPersonality() {
         // Creating a new AI player in game
         const newAIName = document.getElementById('newAIName').value.trim();
         const newAICorePrompt = document.getElementById('newAICorePrompt').value.trim();
-        const newAIChatPrompt = document.getElementById('newAIChatPrompt').value.trim();
-        const newAIGuessPrompt = document.getElementById('newAIGuessPrompt').value.trim();
 
         if (!newAIName) {
             showNotification('Please enter a name for the new AI player', 'error');
@@ -628,25 +525,18 @@ function saveAIPersonality() {
         socket.emit('createAIPlayer', {
             roomCode,
             name: newAIName,
-            corePersonalityPrompt: newAICorePrompt,
-            chatPrompt: newAIChatPrompt,
-            guessPrompt: newAIGuessPrompt
+            corePersonalityPrompt: newAICorePrompt
         });
     }
     else if (selectedAI && !selectedAI.startsWith('saved-')) {
         // Updating existing AI player
-        const aiChatPrompt = document.getElementById('aiChatPrompt').value.trim();
-        const aiGuessPrompt = document.getElementById('aiGuessPrompt').value.trim();
-
         const aiCorePrompt = document.getElementById('aiCorePrompt').value.trim();
 
         // Send request to update AI personality
         socket.emit('updateAIPlayer', {
             roomCode,
             aiPlayerId: selectedAI,
-            corePersonalityPrompt: aiCorePrompt,
-            chatPrompt: aiChatPrompt,
-            guessPrompt: aiGuessPrompt
+            corePersonalityPrompt: aiCorePrompt
         });
     }
 }

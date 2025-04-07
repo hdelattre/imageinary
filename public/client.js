@@ -5,6 +5,7 @@ const ctx = canvas.getContext('2d');
 
 // Local game state
 let currentPlayers = [];
+let currentGameInstance = null;
 
 // Drawing state
 let isEraser = false;
@@ -52,7 +53,6 @@ window.addEventListener('load', () => {
     // Initialize the prompt editor functionality
     promptEditor.initPromptEditor();
     aiPersonalityEditor.initAIPersonalityEditor();
-
 
     // Set up auto-refresh for the rooms list
     restartRoomRefreshInterval();
@@ -161,6 +161,18 @@ function clearDrawCanvas() {
     ctx.beginPath();
 }
 
+// Resets all drawing state (canvas, undo stack, eraser, etc.)
+function resetDrawingState() {
+    clearDrawCanvas();
+    undoStack = [];
+    lastDrawingSent = null;
+    isEraser = false;
+
+    // Reset UI elements
+    document.getElementById('colorPicker').disabled = false;
+    document.getElementById('eraserBtn').classList.remove('eraser-active');
+}
+
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text)
         .then(() => {
@@ -192,6 +204,10 @@ function createRoom(isPublic = false) {
     let username = document.getElementById('username').value.trim();
     let isAutoName = false;
 
+    // Get selected game type
+    const gameTypeSelect = document.getElementById('gameTypeSelect');
+    const gameType = gameTypeSelect ? gameTypeSelect.value : 'imageinary';
+
     // If no username is provided, use the placeholder
     if (!username) {
         username = document.getElementById('username').placeholder;
@@ -205,7 +221,7 @@ function createRoom(isPublic = false) {
         }
 
         // Include custom prompt when creating room (get from promptEditor)
-        socket.emit('createRoom', username, promptEditor.getCustomPrompt(), isPublic);
+        socket.emit('createRoom', username, promptEditor.getCustomPrompt(), isPublic, gameType);
     }
 }
 
@@ -387,7 +403,7 @@ function joinPublicRoom(roomCode) {
     joinRoom();
 }
 
-function startGame(roomCode, username, inviteLink) {
+function startGame(roomCode, username, inviteLink, gameType = 'imageinary') {
     // Clear the rooms refresh interval when game starts
     clearRoomRefreshInterval();
 
@@ -398,8 +414,16 @@ function startGame(roomCode, username, inviteLink) {
     document.getElementById('game').style.display = 'block';
     document.getElementById('currentRoom').textContent = roomCode;
 
-    // Add welcome message for the player (only visible to them)
-    addSystemMessage(`Welcome to room ${roomCode}! You joined as ${username}`, 'system-message welcome-message');
+    // Initialize the appropriate game module
+    if (gameType === 'zoob') {
+        currentGameInstance = window.zoob;
+        currentGameInstance.init(socket); // Pass socket instance
+        addSystemMessage(`Welcome to Zoob, room ${roomCode}! You joined as ${username}`, 'system-message welcome-message');
+    } else { // Default to imageinary
+        currentGameInstance = window.imageinary;
+        currentGameInstance.init(socket); // Pass socket instance
+        addSystemMessage(`Welcome to Imageinary, room ${roomCode}! You joined as ${username}`, 'system-message welcome-message');
+    }
 
     // Initialize timer
     document.getElementById('timer').textContent = getTimeString('--');
@@ -571,6 +595,12 @@ function copyRoomLink() {
 
 // Function to return to lobby
 function returnToLobby() {
+    // Call cleanup on the current game instance BEFORE resetting UI
+    if (currentGameInstance) {
+        currentGameInstance.cleanup();
+        currentGameInstance = null;
+    }
+
     clearDisplayTimer();
     clearChat();
 
@@ -625,19 +655,22 @@ function setDrawingData(drawingData) {
     img.src = drawingData;
 }
 
-function updateGameState({ players, currentDrawer, round, voting }) {
-    document.getElementById('round').textContent = round;
-    const drawerPlayer = players.find(p => p.id === currentDrawer);
-    document.getElementById('drawer').textContent = drawerPlayer ? drawerPlayer.username : "Unknown";
-    document.getElementById('drawer').dataset.id = currentDrawer;
+function updateGameState(gameData) {
+    // Common updates for all game types
+    document.getElementById('round').textContent = gameData.round;
+
+    // Delegate game-specific updates to the current game instance
+    if (currentGameInstance && typeof currentGameInstance.updateState === 'function') {
+        currentGameInstance.updateState(gameData);
+    }
 
     if (currentPlayers.length > 0) {
         // Detect player joins and leaves
-        const newPlayers = players.map(p => p.id);
+        const newPlayers = gameData.players.map(p => p.id);
         const oldPlayers = currentPlayers.map(p => p.id);
 
         // Find players who just joined (in new but not in old)
-        const joinedPlayers = players.filter(p => !oldPlayers.includes(p.id));
+        const joinedPlayers = gameData.players.filter(p => !oldPlayers.includes(p.id));
 
         // Find players who just left (in old but not in new)
         const leftPlayers = currentPlayers.filter(p => !newPlayers.includes(p.id));
@@ -663,7 +696,7 @@ function updateGameState({ players, currentDrawer, round, voting }) {
 
         // Add leave messages
         leftPlayers.forEach(player => {
-            const wasDrawer = player.id === currentDrawer;
+            const wasDrawer = player.id === gameData.currentDrawer;
 
             // For colored usernames we need to use DOM manipulation
             const chatDiv = document.getElementById('chat');
@@ -679,7 +712,7 @@ function updateGameState({ players, currentDrawer, round, voting }) {
             messageDiv.appendChild(document.createTextNode(' has left the game'));
 
             // Additional context if they were the drawer
-            if (wasDrawer) {
+            if (wasDrawer && gameData.gameType !== 'zoob') {
                 messageDiv.appendChild(document.createTextNode(' (was drawing)'));
             }
 
@@ -689,12 +722,12 @@ function updateGameState({ players, currentDrawer, round, voting }) {
     }
 
     // Update current players
-    currentPlayers = [...players];
+    currentPlayers = [...gameData.players];
 
     updatePlayersList();
 
     // Update prompt button styling when host changes
-    const isHost = players.length > 0 && players[0].id === socket.id;
+    const isHost = gameData.players.length > 0 && gameData.players[0].id === socket.id;
     const viewPromptBtn = document.getElementById('viewPromptBtn');
     if (viewPromptBtn) {
         if (isHost) {
@@ -704,74 +737,6 @@ function updateGameState({ players, currentDrawer, round, voting }) {
             viewPromptBtn.classList.remove('host-prompt-btn');
             viewPromptBtn.title = 'View AI Prompt';
         }
-    }
-
-    // Only disable chat for drawer during drawing phase (not during voting)
-    refreshChatEnabled(voting, currentDrawer);
-
-    // Always show toolbar but disable it if not the drawer
-    const toolbar = document.getElementById('toolbar');
-    toolbar.style.display = 'flex';
-    if (socket.id === currentDrawer) {
-        toolbar.classList.remove('disabled');
-    } else {
-        toolbar.classList.add('disabled');
-    }
-}
-
-function refreshChatEnabled(voting, currentDrawer) {
-    const chatDisabled = !voting && socket.id === currentDrawer;
-    const chatInput = document.getElementById('chatInput');
-    chatInput.disabled = chatDisabled;
-    chatInput.placeholder = chatDisabled ? "Drawing..." :
-        voting ? "Chat..." : "/g to guess...";
-}
-
-function startNewTurn({ drawer, drawerId, round }) {
-    document.getElementById('drawer').textContent = drawer;
-    document.getElementById('drawer').dataset.id = drawerId;
-    document.getElementById('round').textContent = round;
-
-    // Reset drawing state
-    clearDrawCanvas();
-    undoStack = [];
-    lastDrawingSent = null;
-
-    // Only reset the voting area and prompt, keep the chat history
-    document.getElementById('voting').style.display = 'none';
-    document.getElementById('prompt').style.display = 'none';
-
-    // Show drawing view
-    document.getElementById('drawing-view').style.display = 'block';
-
-    // Ensure timer is visible and reset
-    document.getElementById('timer').textContent = getTimeString('--');
-    document.getElementById('timer').style.color = '';
-
-    // Show drawing tools but disable if not the drawer
-    const toolbar = document.getElementById('toolbar');
-    toolbar.style.display = 'flex';
-    if (socket.id === drawerId) {
-        toolbar.classList.remove('disabled');
-    } else {
-        toolbar.classList.add('disabled');
-    }
-
-    // Reset color picker and eraser state
-    isEraser = false;
-    document.getElementById('colorPicker').disabled = false;
-    document.getElementById('eraserBtn').classList.remove('eraser-active');
-
-    limitChatMessages(30);
-
-    // Add system message about new turn
-    addSystemMessage(`Round ${round}: ${drawer} is now drawing!`);
-}
-
-function showPrompt(prompt) {
-    if (socket.id === document.getElementById('drawer').dataset.id) {
-        document.getElementById('promptText').textContent = prompt;
-        document.getElementById('prompt').style.display = 'block';
     }
 }
 
@@ -802,19 +767,28 @@ function displayPublicRooms(rooms) {
 
         const details = document.createElement('div');
         details.className = 'room-details';
-        details.textContent = `${room.playerCount} player${room.playerCount !== 1 ? 's' : ''} • Round ${room.round}`;
+
+        // Show game type badge
+        const gameType = room.gameType || 'imageinary';
+        const gameTypeBadge = gameType === 'zoob' ? '🧙‍♂️ Zoob' : '🎨 Imageinary';
+
+        details.textContent = `${gameTypeBadge} • ${room.playerCount} player${room.playerCount !== 1 ? 's' : ''} • Round ${room.round}`;
 
         const roomControls = document.createElement('div');
         roomControls.className = 'room-controls';
 
-        const promptBtn = document.createElement('button');
-        promptBtn.className = 'icon-btn';
-        promptBtn.title = 'View AI Prompt';
-        promptBtn.innerHTML = '<span class="icon">🔮</span>';
-        promptBtn.onclick = (e) => {
-            e.stopPropagation();
-            promptEditor.showPromptModal(room.prompt);
-        };
+        // Only show prompt button for Imageinary rooms
+        if (gameType !== 'zoob') {
+            const promptBtn = document.createElement('button');
+            promptBtn.className = 'icon-btn';
+            promptBtn.title = 'View AI Prompt';
+            promptBtn.innerHTML = '<span class="icon">🔮</span>';
+            promptBtn.onclick = (e) => {
+                e.stopPropagation();
+                promptEditor.showPromptModal(room.prompt);
+            };
+            roomControls.appendChild(promptBtn);
+        }
 
         const joinBtn = document.createElement('button');
         joinBtn.className = 'room-join';
@@ -827,7 +801,6 @@ function displayPublicRooms(rooms) {
         roomInfo.appendChild(hostName);
         roomInfo.appendChild(details);
 
-        roomControls.appendChild(promptBtn);
         roomControls.appendChild(joinBtn);
 
         roomItem.appendChild(roomInfo);
@@ -840,106 +813,89 @@ function displayPublicRooms(rooms) {
     });
 }
 
-function startVoting(generatedImages) {
-    // Hide drawing view and show voting view
+/**
+ * Generic function to display voting options
+ * @param {Array<Object>} options - Array of option objects. Each object needs:
+ *   - playerId: ID of the player associated with the option
+ *   - displayData: Object containing render data based on type
+ * @param {function(string)} onVoteCallback - Function to call with playerId when voted
+ */
+function displayVotingOptions(options, onVoteCallback) {
+    // Hide game-specific views
     document.getElementById('drawing-view').style.display = 'none';
 
-    // Re-enable chat for drawer
-    refreshChatEnabled(true, null);
-
-    // Show the voting area
+    // Show the generic voting area
     const votingArea = document.getElementById('voting');
-    const votingImagesContainer = document.getElementById('voting-images');
-    votingImagesContainer.innerHTML = ''; // Clear any previous images
-
-    // Create an element for each generated image
-    generatedImages.forEach(imageData => {
-        const imageContainer = document.createElement('div');
-        imageContainer.className = 'image-vote-container';
-        imageContainer.dataset.playerId = imageData.playerId;
-
-        // Add the image
-        const img = document.createElement('img');
-        img.src = imageData.imageSrc;
-        img.className = 'vote-image';
-
-        // Add the player info and guess
-        const infoDiv = document.createElement('div');
-        infoDiv.className = 'image-info';
-
-        const nameElement = document.createElement('strong');
-        nameElement.textContent = imageData.playerName;
-
-        infoDiv.appendChild(nameElement);
-        infoDiv.appendChild(document.createTextNode(': "' + imageData.guess + '"'));
-
-        // Add vote counter
-        const voteCounter = document.createElement('div');
-        voteCounter.className = 'vote-counter';
-        voteCounter.textContent = '0';
-        voteCounter.dataset.votes = '0';
-
-        // Add animation container for flying votes
-        const animationContainer = document.createElement('div');
-        animationContainer.className = 'vote-animation-container';
-
-        // Add the vote button
-        const voteButton = document.createElement('button');
-        voteButton.textContent = 'Vote';
-        voteButton.className = 'vote-button';
-        voteButton.onclick = (e) => vote(imageData.playerId, e.target);
-
-        // Add all elements to the container
-        imageContainer.appendChild(img);
-        imageContainer.appendChild(infoDiv);
-        imageContainer.appendChild(voteCounter);
-        imageContainer.appendChild(animationContainer);
-        imageContainer.appendChild(voteButton);
-
-        // Add the container to the voting area
-        votingImagesContainer.appendChild(imageContainer);
-    });
-
-    // Start the voting phase
+    const votingContainer = document.getElementById('voting-images');
+    votingContainer.innerHTML = ''; // Clear previous options
     votingArea.style.display = 'block';
 
-    // Add system message about voting starting
-    addSystemMessage("Time to vote! Pick your favorite image.");
-}
+    // Create container for each option
+    options.forEach(option => {
+        const itemContainer = document.createElement('div');
+        itemContainer.className = 'vote-option-container';
+        itemContainer.dataset.playerId = option.playerId;
 
-function vote(imagePlayerId, buttonElement) {
-    const roomCode = document.getElementById('currentRoom').textContent;
-
-    socket.emit('vote', { roomCode, imagePlayerId });
-
-    // Mark all other vote buttons as unselected and the voted one as selected
-    document.querySelectorAll('.vote-button').forEach(btn => {
-        btn.disabled = true;
-
-        // Get the parent container to determine if this is the voted image
-        const container = btn.closest('.image-vote-container');
-        const isVotedImage = container.dataset.playerId === imagePlayerId;
-
-        if (isVotedImage) {
-            btn.classList.add('voted-selected'); // Green for selected
-
-            // Get vote counter element
-            const voteCounter = container.querySelector('.vote-counter');
-            const animationContainer = container.querySelector('.vote-animation-container');
-
-            // Update vote count
-            let currentVotes = parseInt(voteCounter.dataset.votes || '0');
-            currentVotes++;
-            voteCounter.textContent = currentVotes;
-            voteCounter.dataset.votes = currentVotes;
-            voteCounter.classList.add('has-votes');
-
-            // Create flying vote animation
-            createFlyingVoteAnimation(buttonElement, voteCounter, animationContainer);
-        } else {
-            btn.classList.add('voted-unselected'); // Grey for unselected
+        // Render based on display data type
+        if (option.displayData.type === 'imageinaryGuess') {
+            // Imageinary rendering
+            itemContainer.classList.add('image-vote-container');
+            itemContainer.innerHTML = `
+                <img src="${option.displayData.imageSrc}" class="vote-image" alt="Generated image for guess by ${option.displayData.name}">
+                <div class="image-info">
+                    <strong>${option.displayData.name}</strong>: "${option.displayData.guess}"
+                </div>
+                <div class="vote-counter" data-votes="0">0</div>
+                <div class="vote-animation-container"></div>
+                <button class="vote-button">Vote</button>
+            `;
+        } else if (option.displayData.type === 'zoobAction') {
+            // Zoob rendering
+            itemContainer.classList.add('zoob-action-item');
+            itemContainer.innerHTML = `
+                ${option.displayData.imageSrc ? `<img src="${option.displayData.imageSrc}" class="vote-image" alt="Result of ${option.displayData.action}">` : ''}
+                <div class="zoob-player-info">
+                    <strong>${option.displayData.name}</strong>: "${option.displayData.action}"
+                </div>
+                <div class="zoob-action-result">${option.displayData.result}</div>
+                <div class="vote-counter" data-votes="0">0</div>
+                <div class="vote-animation-container"></div>
+                <button class="vote-button zoob-action-button">Vote</button>
+            `;
         }
+
+        // Attach vote button listener
+        const voteButton = itemContainer.querySelector('.vote-button');
+        if (voteButton) {
+            voteButton.onclick = (e) => {
+                // Disable all buttons after a vote
+                document.querySelectorAll('.vote-button').forEach(btn => btn.disabled = true);
+                // Mark this one as selected
+                e.target.classList.add('voted-selected');
+                e.target.textContent = 'Voted!';
+
+                // Trigger callback with the player ID
+                onVoteCallback(option.playerId);
+
+                // Local animation for the clicked vote
+                const voteCounter = itemContainer.querySelector('.vote-counter');
+                const animationContainer = itemContainer.querySelector('.vote-animation-container');
+                if (voteCounter && animationContainer) {
+                    let currentVotes = parseInt(voteCounter.dataset.votes || '0');
+                    currentVotes++;
+                    voteCounter.textContent = currentVotes;
+                    voteCounter.dataset.votes = currentVotes;
+                    voteCounter.classList.add('has-votes');
+                    createFlyingVoteAnimation(e.target, voteCounter, animationContainer);
+                }
+            };
+        }
+
+        votingContainer.appendChild(itemContainer);
     });
+
+    // Add system message about voting starting
+    addSystemMessage("Time to vote! Pick your favorite option.");
 }
 
 // Function to create a flying vote animation
@@ -979,33 +935,104 @@ function createFlyingVoteAnimation(sourceElement, targetElement, container) {
     }, 1000);
 }
 
-function handleVotingResults({ message, scores, votes }) {
-    // Update players scores
-    scores.forEach(playerScore => {
-        const playerIndex = currentPlayers.findIndex(p => p.id === playerScore.id);
-        if (playerIndex !== -1) {
-            currentPlayers[playerIndex].score = playerScore.score;
+// Event listeners
+document.getElementById('chatInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        const message = e.target.value.trim();
+        const roomCode = document.getElementById('currentRoom').textContent;
+        if (message && roomCode) {
+            socket.emit('sendMessage', { roomCode, message });
+            e.target.value = '';
         }
-    });
+    }
+});
 
-    updatePlayersList();
+document.getElementById('colorPicker').addEventListener('change', () => {
+    if (isEraser) {
+        // Switch out of eraser mode when a color is picked
+        isEraser = false;
+        document.getElementById('eraserBtn').classList.remove('eraser-active');
+        document.getElementById('colorPicker').disabled = false;
+    }
+});
+
+// Socket event handlers
+socket.on('publicRoomsList', (rooms) => {
+    displayPublicRooms(rooms);
+});
+
+socket.on('roomCreated', ({ roomCode, username, inviteLink, gameType }) => {
+    startGame(roomCode, username, inviteLink, gameType);
+});
+
+socket.on('roomJoined', ({ roomCode, username, gameType }) => {
+    startGame(roomCode, username, null, gameType);
+});
+
+socket.on('gameState', (gameState) => {
+    updateGameState(gameState);
+});
+
+socket.on('drawingUpdate', (drawingData) => {
+    setDrawingData(drawingData);
+});
+
+socket.on('newMessage', (messageData) => {
+    addPlayerMessage(messageData);
+});
+
+socket.on('systemMessage', ({ message, timestamp }) => {
+    addSystemMessage(message);
+});
+
+socket.on('votingResults', (resultsData) => {
+    // First handle common voting behavior
+    handleCommonVotingResults(resultsData);
+
+    // Then delegate to game-specific handler for additional behavior
+    if (currentGameInstance && typeof currentGameInstance.handleVotingResults === 'function') {
+        currentGameInstance.handleVotingResults(resultsData);
+    }
+});
+
+socket.on('playerVoted', (voteData) => {
+    // First handle common voting behavior
+    handleCommonPlayerVote(voteData);
+
+    // Then delegate to game-specific handler for additional behavior
+    if (currentGameInstance && typeof currentGameInstance.handlePlayerVote === 'function') {
+        currentGameInstance.handlePlayerVote(voteData);
+    }
+});
+
+/**
+ * Handles common voting results behavior across game types
+ * @param {Object} resultsData - The voting results data
+ */
+function handleCommonVotingResults(resultsData) {
+    // Update player scores
+    if (resultsData.scores) {
+        resultsData.scores.forEach(playerScore => {
+            const playerIndex = currentPlayers.findIndex(p => p.id === playerScore.id);
+            if (playerIndex !== -1) {
+                currentPlayers[playerIndex].score = playerScore.score;
+            }
+        });
+        updatePlayersList();
+    }
 
     // Process votes if provided by the server
-    if (votes) {
+    if (resultsData.votes) {
         // Calculate total votes and determine winners
         let totalVotes = 0;
         let winningPlayerIds = [];
 
-        // First pass: calculate total votes
-        Object.values(votes).forEach(voteCount => {
+        Object.values(resultsData.votes).forEach(voteCount => {
             totalVotes += voteCount;
         });
-
-        // Minimum threshold for a win - more than 50% of votes
         const winThreshold = totalVotes > 0 ? totalVotes / 2 : 0;
 
-        // Second pass: find players who received more than 50% of votes
-        Object.entries(votes).forEach(([playerId, voteCount]) => {
+        Object.entries(resultsData.votes).forEach(([playerId, voteCount]) => {
             if (voteCount > winThreshold) {
                 winningPlayerIds.push(playerId);
             }
@@ -1013,53 +1040,82 @@ function handleVotingResults({ message, scores, votes }) {
 
         // Delay to allow current user's vote animation to complete
         setTimeout(() => {
-            // For each player who received votes
-            Object.entries(votes).forEach(([playerId, voteCount]) => {
-                // Skip if vote count is 0
+            Object.entries(resultsData.votes).forEach(([playerId, voteCount]) => {
                 if (voteCount === 0) return;
 
-                const container = document.querySelector(`.image-vote-container[data-player-id="${playerId}"]`);
+                // Find the container using the generic class + data attribute
+                const container = document.querySelector(`.vote-option-container[data-player-id="${playerId}"]`);
                 if (container) {
                     const voteCounter = container.querySelector('.vote-counter');
                     const animationContainer = container.querySelector('.vote-animation-container');
-                    const voteButton = container.querySelector('.vote-button');
 
-                    // Update vote count
+                    // Update vote count display
                     voteCounter.textContent = voteCount;
-                    voteCounter.dataset.votes = voteCount;
+                    voteCounter.dataset.votes = voteCount; // Store numeric value
                     voteCounter.classList.add('has-votes');
 
-                    // Create multiple flying votes with small delays for a cascade effect
+                    // Trigger incoming vote animations
                     for (let i = 0; i < voteCount; i++) {
-                        // Create a random start position around the image for incoming votes
                         setTimeout(() => {
-                            // For votes from others, create a flying animation from a random edge
                             createRandomVoteAnimation(voteCounter, animationContainer);
-                        }, i * 200); // Stagger animations by 200ms
+                        }, i * 200);
                     }
 
                     // If this is a winning player, highlight their vote counter
                     if (winningPlayerIds.includes(playerId)) {
-                        // Add a slight delay before highlighting winner to let animations finish
                         setTimeout(() => {
                             voteCounter.classList.add('winner');
-
-                            // Create winning celebration effect
                             celebrateWinner(container);
-                        }, voteCount * 220 + 500); // Delay based on the number of vote animations + 500ms buffer
+                        }, voteCount * 220 + 500);
                     }
                 }
             });
-        }, 500); // Give time for the user's own vote animation to complete
+        }, 500); // Initial delay
     }
 
-    // Add system message about voting results
-    addSystemMessage(message);
+    // Display voting results message
+    if (resultsData.message) {
+        addSystemMessage(resultsData.message);
+    }
 }
 
-// Function to create a celebration effect for winning images
+/**
+ * Handles player vote animation for all game types
+ * @param {Object} voteData - Data about the vote cast
+ */
+function handleCommonPlayerVote(voteData) {
+    const { playerId, voterName, voterColor } = voteData;
+
+    // We only need to display animations for votes from OTHERS.
+    // The local click handler already dealt with our own click's animation.
+    // Simply check if this socket is the voter (more reliable than username check)
+    if (socket.id === voteData.voterId) return;
+
+    // Find the container for the item that was voted for
+    const container = document.querySelector(`.vote-option-container[data-player-id="${playerId}"]`);
+    if (!container) return;
+
+    const voteCounter = container.querySelector('.vote-counter');
+    const animationContainer = container.querySelector('.vote-animation-container');
+
+    if (!voteCounter || !animationContainer) return; // Safety check
+
+    // Update vote count
+    let currentVotes = parseInt(voteCounter.dataset.votes || '0');
+    currentVotes++;
+    voteCounter.textContent = currentVotes;
+    voteCounter.dataset.votes = currentVotes;
+    voteCounter.classList.add('has-votes');
+
+    // Create flying vote animation from a random edge
+    createRandomVoteAnimation(voteCounter, animationContainer, voterName, voterColor);
+
+    // Add a subtle system message
+    addSystemMessage(`${voterName} voted for an option`, 'system-message vote-message');
+}
+
+// Create victory celebration animation for a winning option
 function celebrateWinner(container) {
-    // Add subtle background flash to the image container
     const flashEffect = document.createElement('div');
     flashEffect.style.position = 'absolute';
     flashEffect.style.top = '0';
@@ -1090,36 +1146,6 @@ function celebrateWinner(container) {
             }, 500);
         }, 800);
     }, 100);
-}
-
-// Handle a vote from another player
-function handlePlayerVote(targetPlayerId, voterName, voterColor) {
-    // Check if this is our own vote - we've already handled it locally
-    const ourPlayer = currentPlayers.find(p => p.id === socket.id);
-    const isOurVote = ourPlayer && ourPlayer.username === voterName;
-    if (isOurVote) return;
-
-    // Find the container for the image that was voted for
-    const container = document.querySelector(`.image-vote-container[data-player-id="${targetPlayerId}"]`);
-    if (!container) return;
-
-    // Get the counter and animation container
-    const voteCounter = container.querySelector('.vote-counter');
-    const animationContainer = container.querySelector('.vote-animation-container');
-
-    // Update vote count
-    let currentVotes = parseInt(voteCounter.dataset.votes || '0');
-    currentVotes++;
-    voteCounter.textContent = currentVotes;
-    voteCounter.dataset.votes = currentVotes;
-    voteCounter.classList.add('has-votes');
-
-    // Create flying vote animation from a random edge
-    createRandomVoteAnimation(voteCounter, animationContainer, voterName, voterColor);
-
-    // Add a subtle system message
-    const message = `${voterName} voted for an image`;
-    addSystemMessage(message, 'system-message vote-message');
 }
 
 // Function to create a random vote animation (for votes from other players)
@@ -1188,78 +1214,12 @@ function createRandomVoteAnimation(targetElement, container, voterName, voterCol
     }, 1000);
 }
 
-// Event listeners
-document.getElementById('chatInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        const message = e.target.value.trim();
-        const roomCode = document.getElementById('currentRoom').textContent;
-        if (message && roomCode) {
-            socket.emit('sendMessage', { roomCode, message });
-            e.target.value = '';
-        }
-    }
-});
-
-document.getElementById('colorPicker').addEventListener('change', () => {
-    if (isEraser) {
-        // Switch out of eraser mode when a color is picked
-        isEraser = false;
-        document.getElementById('eraserBtn').classList.remove('eraser-active');
-        document.getElementById('colorPicker').disabled = false;
-    }
-});
-
-// Socket event handlers at the bottom
-socket.on('publicRoomsList', (rooms) => {
-    displayPublicRooms(rooms);
-});
-
-socket.on('roomCreated', ({ roomCode, username, inviteLink }) => {
-    startGame(roomCode, username, inviteLink);
-});
-
-socket.on('roomJoined', ({ roomCode, username }) => {
-    startGame(roomCode, username);
-});
-
-socket.on('gameState', (gameState) => {
-    updateGameState(gameState);
-});
-
-socket.on('newTurn', (turnData) => {
-    startNewTurn(turnData);
-});
-
-socket.on('newPrompt', (prompt) => {
-    showPrompt(prompt);
-});
-
-socket.on('drawingUpdate', (drawingData) => {
-    setDrawingData(drawingData);
-});
-
-socket.on('newMessage', (messageData) => {
-    addPlayerMessage(messageData);
-});
-
-socket.on('systemMessage', ({ message, timestamp }) => {
-    addSystemMessage(message);
-});
-
-socket.on('startVoting', (generatedImages) => {
-    startVoting(generatedImages);
-});
-
-socket.on('votingResults', (resultsData) => {
-    handleVotingResults(resultsData);
-});
-
-socket.on('playerVoted', ({ playerId, voterName, voterColor }) => {
-    handlePlayerVote(playerId, voterName, voterColor);
-});
-
 socket.on('startDisplayTimer', (seconds) => {
     startDisplayTimer(seconds);
+});
+
+socket.on('stopDisplayTimer', () => {
+    clearDisplayTimer();
 });
 
 socket.on('error', (message) => console.error(message));

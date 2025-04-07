@@ -5,7 +5,14 @@ const socketIo = require('socket.io');
 const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 const geminiService = require('./geminiService');
-const promptBuilder = require('./promptBuilder');
+const promptBuilder = require('./games/imageinary/promptBuilder');
+const ImageinaryGame = require('./games/imageinary/imageinary');
+const ZoobGame = require('./games/zoob/zoob');
+
+// NOTE: Client-side code has been refactored for better organization:
+// 1. Game-specific code is now in separate modules (public/games/*)
+// 2. Each game module manages its own socket listeners
+// 3. A generic voting UI component handles both game types' voting
 
 // Import shared configuration and validation
 const PROMPT_CONFIG = require('./public/shared-config');
@@ -19,7 +26,7 @@ const port = process.env.PORT || 3000;
 geminiService.initializeGeminiService(process.env.GEMINI_API_KEY);
 
 // In-memory storage
-const games = new Map(); // roomCode -> gameData
+const games = new Map(); // roomCode -> gameRoomData
 const drawings = new Map(); // roomCode -> drawingData
 const lastMessageTimes = new Map(); // Tracks last message time per player
 const publicRooms = new Map(); // Stores public room data for listing
@@ -27,12 +34,6 @@ const publicRooms = new Map(); // Stores public room data for listing
 // User consts
 const MAX_USERNAME_LENGTH = 24;
 const MAX_AI_NAME_LENGTH = 20;
-
-// Predefined prompts for the drawer
-const prompts = [
-    "cat", "dog", "house", "tree", "car", "sun", "moon", "star", "flower", "boat",
-    "airplane", "bicycle", "book", "chair", "computer", "door", "window", "table", "shoe", "hat"
-];
 
 // AI player configuration
 const AI_PLAYER_PREFIX = "🤖 ";
@@ -50,19 +51,6 @@ const AI_NAMES = [
     "Gizmo", "Vex", "Saffron", "Drifty", "Korvax", "Blitz"
 ];
 
-// AI player timing configuration
-const aiTiming = {
-    minGuessTime: 4000,      // 4 seconds
-    maxGuessTime: 12000,     // 12 seconds
-    guessInterval: 30000,    // 30 seconds between guesses
-    lastChanceTime: 10000,   // 10 seconds left
-    drawingTime: 3000,       // 3 seconds to create drawing
-    chatProbability: 0.4     // 40% chance of sending a chat message
-};
-
-// Game configuration
-const roundDuration = 45; // seconds
-
 app.use(express.static('public'));
 
 app.get('/', (req, res) => {
@@ -72,6 +60,181 @@ app.get('/', (req, res) => {
 function isSocketRoomHost(game, socketId) {
     const players = Array.from(game.players.keys());
     return players.length > 0 && players[0] === socketId;
+}
+
+function createGameCallbacks(roomCode) {
+    const gameRoom = games.get(roomCode);
+    if (!gameRoom) return null;
+
+    return {
+        // Communication
+        emitToRoom: (event, data) => io.to(roomCode).emit(event, data),
+        emitToPlayer: (playerId, event, data) => io.to(playerId).emit(event, data),
+        sendSystemMessage: (message, inHistory = false, targetPlayerId = null) => {
+            if (targetPlayerId) {
+                // Send message to specific player only
+                const timestamp = new Date().toLocaleTimeString();
+                io.to(targetPlayerId).emit('systemMessage', { message, timestamp });
+            } else {
+                // Use existing server function for room-wide messages
+                sendSystemMessage(roomCode, message, inHistory);
+            }
+        },
+        sendPlayerMessage: (playerId, message, isGuess) => {
+            // Use existing server function, but source is game logic now
+            // Need to ensure the player still exists on the server
+            if (gameRoom.players.has(playerId)) {
+                sendPlayerMessage(roomCode, playerId, message, isGuess);
+            }
+        },
+
+        // Timers
+        startTimer: (durationMs, timerType) => {
+            if (!gameRoom.activeTimers) gameRoom.activeTimers = new Map();
+            if (!gameRoom.timerEndTimes) gameRoom.timerEndTimes = new Map();
+
+            // Clear existing timer of the same type
+            gameRoom.currentGameInstance?.callbacks.clearTimer(timerType);
+
+            const endTime = Date.now() + durationMs;
+            const timerId = setTimeout(() => {
+                console.log(`Server Timer ${timerType} for ${roomCode} expired.`);
+                gameRoom.activeTimers.delete(timerType);
+                gameRoom.timerEndTimes.delete(timerType);
+                if (gameRoom.currentGameInstance) {
+                    gameRoom.currentGameInstance.handleTimerExpiration(timerType);
+                }
+            }, durationMs);
+            gameRoom.activeTimers.set(timerType, timerId);
+            gameRoom.timerEndTimes.set(timerType, endTime);
+            console.log(`Server Timer ${timerType} for ${roomCode} started (${durationMs}ms).`);
+        },
+        clearTimer: (timerType) => {
+            if (gameRoom.activeTimers && gameRoom.activeTimers.has(timerType)) {
+                clearTimeout(gameRoom.activeTimers.get(timerType));
+                gameRoom.activeTimers.delete(timerType);
+                gameRoom.timerEndTimes.delete(timerType);
+                console.log(`Server Timer ${timerType} for ${roomCode} cleared.`);
+            }
+        },
+        getTimerEndTime: (timerType) => {
+            return gameRoom.timerEndTimes ? gameRoom.timerEndTimes.get(timerType) || 0 : 0;
+        },
+
+        // Data Access / Update
+        getPlayers: () => new Map(gameRoom.players), // Return a copy
+        getChatHistory: () => [...gameRoom.chatHistory], // Return a copy
+        getAIDetails: async (aiPlayerId) => { // Keep async signature if needed later
+            const aiPlayerData = gameRoom.players.get(aiPlayerId);
+            if (!aiPlayerData) return null;
+
+            // Get AI player data and prompts
+            const aiData = gameRoom.aiPlayers.get(aiPlayerId);
+            if (!aiData) return null;
+
+            return {
+                id: aiPlayerId,
+                username: aiPlayerData.username,
+                corePersonalityPrompt: aiData.corePersonalityPrompt,
+                chatPrompt: aiData.chatPrompt,
+                guessPrompt: aiData.guessPrompt
+            };
+        },
+        updatePlayersData: (scoreUpdatesMap) => {
+            let updatedScores = [];
+            scoreUpdatesMap.forEach((pointsToAdd, playerId) => {
+                if (gameRoom.players.has(playerId)) {
+                    const playerData = gameRoom.players.get(playerId);
+                    playerData.score += pointsToAdd;
+                    updatedScores.push({ id: playerId, score: playerData.score });
+                }
+            });
+            // Optionally emit score updates immediately or wait for full gameState update
+            updateGameState(roomCode); // Trigger a full state update which includes scores
+        },
+        getDrawingData: async () => { // Keep async signature
+            return drawings.get(roomCode);
+        },
+        getDrawingDataSync: () => { // Add sync version if needed by AI last chance
+            return drawings.get(roomCode);
+        },
+        setDrawingData: (drawingData) => {
+            drawings.set(roomCode, drawingData);
+            // Broadcast the drawing update
+            io.to(roomCode).emit('drawingUpdate', drawingData);
+        },
+        updateGameState: () => updateGameState(roomCode), // Trigger server to send gameState
+
+        requestGeminiText: async (prompt, drawingData = null) => {
+            return await geminiService.requestGeminiResponse(prompt, drawingData, true);
+        },
+        requestGeminiImage: async (prompt, drawingData = null) => {
+            return await geminiService.requestGeminiResponse(prompt, drawingData, false);
+        },
+        requestGeminiTextAndImage: async (prompt, drawingData = null) => {
+            return await geminiService.requestGeminiResponse(prompt, drawingData, false);
+        },
+        requestGeminiStructuredText: async (prompt, drawingData = null, textOnly = true) => {
+            const result = await geminiService.requestGeminiResponse(prompt, drawingData, textOnly);
+
+            if (result && result.text) {
+                const processed = geminiService.processStructuredResponse(result.text);
+                if (processed.data) {
+                    return { text: processed.text, data: processed.data, image: result.imageData };
+                }
+
+                console.warn(`Room ${roomCode}| No JSON data found in Gemini response: ${result.text}`);
+                return { text: result.text, data: null, image: result.imageData };
+            }
+
+            console.error(`Room ${roomCode}| Gemini response missing text content for structured data request`);
+            return { text: null, data: null, image: null };
+        },
+        saveGeneratedImage: async (imageData, metadata) => {
+            try {
+                if (!imageData) {
+                    throw new Error('No image data provided');
+                }
+
+                // Extract metadata
+                const { playerId, round } = metadata;
+                if (!playerId) {
+                    throw new Error('Player ID is required for saving images');
+                }
+
+                // Create a buffer from the base64 data
+                const buffer = Buffer.from(imageData, 'base64');
+
+                // Ensure the generated directory exists
+                const generatedDir = path.join(__dirname, 'public', 'generated');
+                fs.mkdirSync(generatedDir, { recursive: true });
+
+                // Create safe filename components
+                const safeRoomCode = roomCode.replace(/[^a-zA-Z0-9]/g, '');
+                const safePlayerId = playerId.replace(/[^a-zA-Z0-9-]/g, '');
+                const safeRound = String(round || 0).replace(/[^0-9]/g, '');
+
+                // Generate a unique filename
+                const filename = `generated-${safeRoomCode}-${safeRound}-${safePlayerId}.png`;
+                const filePath = path.join(generatedDir, filename);
+
+                // Security check - ensure we're not writing outside the target directory
+                const safePath = path.normalize(filePath);
+                if (!safePath.startsWith(generatedDir)) {
+                    throw new Error('Invalid file path - security violation');
+                }
+
+                // Write the file to disk
+                fs.writeFileSync(safePath, buffer);
+
+                // Return the public URL path to the saved image
+                return `/generated/${filename}`;
+            } catch (error) {
+                console.error(`Room ${roomCode}| Error saving generated image:`, error);
+                return null; // Indicate failure
+            }
+        },
+    };
 }
 
 io.on('connection', (socket) => {
@@ -112,6 +275,9 @@ io.on('connection', (socket) => {
         let aiPlayerId = createAIPlayer(roomCode, personality);
 
         if (aiPlayerId) {
+            // Notify game instance about new AI player
+            game.currentGameInstance?.handlePlayerJoin(aiPlayerId, game.players.get(aiPlayerId));
+
             // Update game state for all players
             updateGameState(roomCode);
 
@@ -158,40 +324,48 @@ io.on('connection', (socket) => {
         removeAIPlayer(roomCode, aiPlayerId);
     });
 
-    socket.on('createRoom', (username, customPrompt, isPublic = false) => {
+    socket.on('createRoom', (username, customPrompt, isPublic = false, gameType = 'imageinary') => {
         username = sanitizeMessage(username, '', 24);
 
         const roomCode = uuidv4().slice(0, 6).toUpperCase();
         socket.join(roomCode);
 
-        console.log(`Room ${roomCode}| Created by ${username}, isPublic: ${isPublic}`);
+        console.log(`Room ${roomCode}| Created by ${username}, isPublic: ${isPublic}, gameType: ${gameType}`);
 
-        // Initialize the game
-        createRoom(roomCode, isPublic);
+        // Initialize the game room with specified game type
+        createRoom(roomCode, isPublic, gameType);
         const game = games.get(roomCode);
 
-        addPlayer(game, socket.id, username);
-
-        // Store custom prompt if provided
-        if (customPrompt) {
+        // Store custom prompt if provided (only applicable for Imageinary)
+        if (customPrompt && gameType === 'imageinary') {
             // Validate the prompt
             customPrompt = sanitizeMessage(customPrompt, PROMPT_CONFIG.VALID_CHARS, PROMPT_CONFIG.MAX_PROMPT_LENGTH);
             const validation = PROMPT_CONFIG.validatePrompt(customPrompt);
             if (validation.valid) {
-                game.customPrompt = customPrompt;
+                game.roomCustomPrompt = customPrompt;
+
+                // Update the game instance with the custom prompt
+                if (game.currentGameInstance) {
+                    game.currentGameInstance.updateCustomPrompt(customPrompt);
+                }
             }
         }
+
+        socket.emit('roomCreated', {
+            roomCode,
+            username,
+            inviteLink: `http://localhost:${port}/?room=${roomCode}`,
+            isPublic,
+            gameType: gameType
+        });
+
+        // Add the host player
+        addPlayer(game, socket.id, username);
 
         // If room is public, add it to the public rooms list
         if (isPublic) {
             updatePublicRoomsList(roomCode);
         }
-
-        socket.emit('roomCreated', { roomCode, username, inviteLink: `http://localhost:${port}/?room=${roomCode}`, isPublic });
-
-        sendSystemMessage("TIP: Use /g followed by your guess to submit a guess that will be used for image generation. Regular chat messages won't be used for generating images.")
-
-        startGame(roomCode);
     });
 
     // Set up rate limiting
@@ -219,7 +393,7 @@ io.on('connection', (socket) => {
         socket.emit('publicRoomsList', roomsList);
     });
 
-    // Endpoint to get a room's prompt
+    // Endpoint to get a room's prompt and game type
     socket.on('getRoomPrompt', (roomCode) => {
         const game = games.get(roomCode);
         if (!game) return;
@@ -227,10 +401,11 @@ io.on('connection', (socket) => {
         const players = Array.from(game.players.keys());
         const isHost = players.length > 0 && players[0] === socket.id;
 
-        // Return the prompt and host status in one response
+        // Return the prompt, game type, and host status in one response
         socket.emit('roomPrompt', {
-            prompt: game.customPrompt,
-            isHost: isHost
+            prompt: game.roomCustomPrompt,
+            isHost: isHost,
+            gameType: game.gameType || 'imageinary'
         });
     });
 
@@ -247,9 +422,13 @@ io.on('connection', (socket) => {
             prompt = sanitizeMessage(prompt, PROMPT_CONFIG.VALID_CHARS);
             const validation = PROMPT_CONFIG.validatePrompt(prompt);
             if (validation.valid) {
-                // Update the custom prompt with the validated prompt
-                game.customPrompt = prompt;
-                console.log(`Room ${roomCode}| Prompt updated by host: ${game.customPrompt}`);
+                // Update the room's custom prompt
+                game.roomCustomPrompt = prompt;
+
+                // Update the game instance
+                game.currentGameInstance?.updateCustomPrompt(prompt);
+
+                console.log(`Room ${roomCode}| Prompt updated by host: ${game.roomCustomPrompt}`);
 
                 // If this is a public room, update the public room list
                 if (game.isPublic) {
@@ -334,9 +513,10 @@ io.on('connection', (socket) => {
                 counter++;
             }
 
+            // Add player to the room
             addPlayer(game, socket.id, uniqueUsername);
 
-            socket.emit('roomJoined', { roomCode, username: uniqueUsername });
+            socket.emit('roomJoined', { roomCode, username: uniqueUsername, gameType: game.gameType });
 
             // Reset emptiness timestamp since we have a new player
             game.emptyRoomTimestamp = null;
@@ -374,24 +554,25 @@ io.on('connection', (socket) => {
             });
 
             // Sync the timer for the new player
-            if (game.timerEnd > Date.now()) {
-                // If we're in drawing phase
-                const remainingSeconds = Math.ceil((game.timerEnd - Date.now()) / 1000);
+            const timerEndTimes = game.timerEndTimes || new Map();
+
+            // If we're in drawing phase
+            const roundEndTime = timerEndTimes.get('roundEnd');
+            if (roundEndTime && roundEndTime > Date.now()) {
+                const remainingSeconds = Math.ceil((roundEndTime - Date.now()) / 1000);
                 if (remainingSeconds > 0) {
                     socket.emit('startDisplayTimer', remainingSeconds);
                 }
-            } else if (game.votingTimerEnd > Date.now()) {
-                // If we're in voting phase
-                const remainingSeconds = Math.ceil((game.votingTimerEnd - Date.now()) / 1000);
+            }
+            // If we're in voting phase
+            else if (timerEndTimes.get('votingEnd') && timerEndTimes.get('votingEnd') > Date.now()) {
+                const remainingSeconds = Math.ceil((timerEndTimes.get('votingEnd') - Date.now()) / 1000);
                 if (remainingSeconds > 0) {
                     socket.emit('startDisplayTimer', remainingSeconds);
                 }
             }
 
             updateGameState(roomCode);
-
-            // Send help message about the /g command
-            sendSystemMessage(roomCode, "TIP: Use /g followed by your guess to submit a guess that will be used for image generation. Regular chat messages won't be used for generating images.");
 
             // Update public rooms list if this is a public room
             if (game.isPublic) {
@@ -409,17 +590,17 @@ io.on('connection', (socket) => {
         // Send the update to all other players in the room
         socket.to(roomCode).emit('drawingUpdate', drawingData);
 
-        // Process drawing update for AI players
-        handleAIPlayerDrawingUpdate(roomCode, drawingData);
+        // Forward the drawing data to the game logic
+        const game = games.get(roomCode);
+        game?.currentGameInstance?.handleDrawingUpdate(drawingData);
     });
 
     socket.on('sendMessage', ({ roomCode, message }) => {
         const game = games.get(roomCode);
         if (!game) return;
-        // Allow drawer to send messages if in voting phase, otherwise continue blocking
-        if (socket.id === game.currentDrawer && !game.voting) {
-            return; // Drawer can't chat during drawing phase
-        }
+        const gameInstance = game.currentGameInstance;
+        const chatAllowed = !gameInstance?.canPlayerChat || gameInstance.canPlayerChat(socket.id);
+        if (!chatAllowed) return;
 
         const now = Date.now();
         const lastTime = lastMessageTimes.get(socket.id) || 0;
@@ -430,29 +611,50 @@ io.on('connection', (socket) => {
 
         message = sanitizeMessage(message, '/.?!');
 
+        let gameHandled = false;
         let displayMessage = message;
-        // Check if this is a guess command (/g)
-        const isGuess = message.startsWith('/g');
-        if (isGuess) {
-            // Find the first whitespace and remove everything up to and including it
+        let isGuess = false;
+
+        // Handle commands
+        if (message.startsWith('/')) {
+            let commandName = null;
+            let commandValue = null;
+
+            // Find first whitespace to split command from guess
             const firstSpaceIndex = message.indexOf(' ');
             if (firstSpaceIndex !== -1) {
-                displayMessage = message.substring(firstSpaceIndex + 1).trim();
-            } else {
-                // No guess to send
+                commandName = message.substring(1, firstSpaceIndex);
+                commandValue = message.substring(firstSpaceIndex + 1).trim();
+            }
+
+            if (!commandName) return;
+            if (!commandValue) {
+                sendSystemMessage(roomCode, `Usage: /${commandName} [message] (use a space after /${commandName})`, false, socket.id);
                 return;
             }
-        }
-        else if (message.startsWith('/')) {
-            // Ignore invalid command
-            return;
+
+            if (game.currentGameInstance) {
+                const result = game.currentGameInstance.handlePlayerCommand(socket.id, commandName,  commandValue);
+                if (result.handled) {
+                    gameHandled = result.handled;
+                    displayMessage = result.displayMessage; // May be modified (e.g., /g removed)
+                    isGuess = result.isGuess;
+                }
+                else {
+                    sendSystemMessage(roomCode, `Unknown command /${commandName}`, false, socket.id);
+                    return;
+                }
+            }
         }
 
-        sendPlayerMessage(roomCode, socket.id, displayMessage, isGuess);
+        if (displayMessage) {
+            sendPlayerMessage(roomCode, socket.id, displayMessage, isGuess);
+        }
     });
 
-    socket.on('vote', ({ roomCode, imagePlayerId }) => {
-        setPlayerVote(roomCode, socket.id, imagePlayerId);
+    socket.on('vote', ({ roomCode, votePlayerId }) => {
+        const game = games.get(roomCode);
+        game?.currentGameInstance?.handleVote(socket.id, votePlayerId);
     });
 
     // AI Personality Editor endpoints
@@ -547,6 +749,13 @@ io.on('connection', (socket) => {
 
         console.log(`Room ${roomCode}| AI player ${aiPlayerId} personality updated`);
 
+        // Notify the game instance about the personality update
+        game.currentGameInstance?.handleAIPlayerPersonalityUpdate(aiPlayerId, {
+            corePersonalityPrompt: aiData.corePersonalityPrompt,
+            chatPrompt: aiData.chatPrompt,
+            guessPrompt: aiData.guessPrompt
+        });
+
         // Send success response
         socket.emit('aiPlayerUpdated', { success: true });
     });
@@ -615,6 +824,9 @@ io.on('connection', (socket) => {
             const aiPlayerId = createAIPlayer(roomCode, personality);
 
             if (aiPlayerId) {
+                // Notify game instance about new AI player
+                game.currentGameInstance?.handlePlayerJoin(aiPlayerId, game.players.get(aiPlayerId));
+
                 // Update game state for all players
                 updateGameState(roomCode);
 
@@ -642,11 +854,13 @@ io.on('connection', (socket) => {
         // Clean up player from games
         games.forEach((game, roomCode) => {
             if (game.players.has(socket.id)) {
-                // Store this info before removing the player
-                const wasDrawer = game.currentDrawer === socket.id;
+                // Store this info before notifying the game instance
                 const wasHost = Array.from(game.players.keys())[0] === socket.id;
 
-                // Now remove the player
+                // Notify game instance about player leaving
+                game.currentGameInstance?.handlePlayerLeave(socket.id);
+
+                // Now remove the player from server's player list
                 game.players.delete(socket.id);
 
                 // Get count of real human players (non-AI)
@@ -665,26 +879,12 @@ io.on('connection', (socket) => {
                         console.log(`Room ${roomCode}| Now empty (public). Will expire in 30 seconds if no one joins.`);
                     }
 
-                    // Clean up all AI players if the room is empty
-                    game.aiPlayers.forEach((aiData, aiPlayerId) => {
-                        if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
-                        if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-                        if (aiData.chatTimer) clearTimeout(aiData.chatTimer);
-                    });
-                    game.aiPlayers.clear();
-
-                // If only AI players remain, clear them all
                 } else if (humanPlayerCount === 0 && game.aiPlayers.size > 0) {
                     console.log(`Room ${roomCode}| Only contains AI players now. Removing all AI players.`);
 
                     // Remove all AI players
                     game.aiPlayers.forEach((aiData, aiPlayerId) => {
-                        // Clean up AI player data
-                        if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
-                        if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-                        if (aiData.chatTimer) clearTimeout(aiData.chatTimer);
-
-                        // Remove from players list
+                        // Remove from players list - game instance will handle cleanup internally
                         game.players.delete(aiPlayerId);
                     });
                     game.aiPlayers.clear();
@@ -698,11 +898,6 @@ io.on('connection', (socket) => {
                 } else {
                     // Reset single player timestamp if we have more players
                     game.singlePlayerTimestamp = null;
-                }
-
-                // If the drawer left and there are still players, start a new turn
-                if (wasDrawer && game.players.size > 0) {
-                    nextTurn(roomCode);
                 }
 
                 // If host left, reassign host status to the first remaining player
@@ -784,10 +979,6 @@ function sendPlayerMessage(roomCode, playerId, message, isGuess) {
         ...messageData
     });
 
-    if (isGuess) {
-        game.lastGuesses.set(playerId, message);
-    }
-
     io.to(roomCode).emit('newMessage', messageData);
 }
 
@@ -811,46 +1002,76 @@ function getRandomColor() {
     return colors[Math.floor(Math.random() * colors.length)];
 }
 
-function createRoom(roomCode, isPublic = false) {
-    games.set(roomCode, {
-        players: new Map(),
-        currentDrawer: null,
-        round: 1,
-        timer: null,
-        timerEnd: 0,
-        votingTimer: null,
-        votingTimerEnd: 0,
-        currentPrompt: '',
-        chatHistory: [],
-        lastGuesses: new Map(),
-        votes: new Map(),
-        generatedImages: [],
-        voting: false,
+function createRoom(roomCode, isPublic = false, gameType = 'imageinary') {
+    // Initialize game room data
+    const gameRoomData = {
+        players: new Map(),  // Master player list
+        gameType: gameType,  // Identifier for the current game type
+        currentGameInstance: null,  // Will hold game instance (Imageinary or Zoob)
         isPublic: isPublic,
         createdAt: Date.now(),
-        emptyRoomTimestamp: null,     // Track when the room becomes empty
+        emptyRoomTimestamp: null,  // Track when the room becomes empty
         singlePlayerTimestamp: null,  // Track when the room has only one player
-        // Default AI generation prompt template
-        customPrompt: PROMPT_CONFIG.IMAGE_GEN_PROMPT,
-        aiPlayers: new Map(),         // Store AI player metadata (ID -> data),
-        lastChanceTimer: null         // Timer to alert AI last chance to guess
-    });
+        chatHistory: [],  // Keep chat history at room level
+        aiPlayers: new Map(),  // Store AI player metadata (ID -> data)
+        roomCustomPrompt: PROMPT_CONFIG.IMAGE_GEN_PROMPT,  // Default prompt for image generation
+        activeTimers: new Map(),  // For tracking server-managed timers
+        timerEndTimes: new Map()  // For tracking timer end times
+    };
+
+    games.set(roomCode, gameRoomData);
+
+    // Create callback functions for game instance
+    const callbacks = createGameCallbacks(roomCode);
+
+    if (callbacks) {
+        // Create the game instance based on type
+        if (gameType === 'zoob') {
+            gameRoomData.currentGameInstance = new ZoobGame(
+                roomCode,
+                io,
+                gameRoomData.players,  // Pass initial player map (empty at this point)
+                {  // Pass game config
+                    imageStyle: "fantasy illustration",
+                    // Add other config overrides here if needed
+                },
+                callbacks
+            );
+            console.log(`Room ${roomCode}| Instantiated ZoobGame.`);
+        } else {
+            // Default to Imageinary game
+            gameRoomData.currentGameInstance = new ImageinaryGame(
+                roomCode,
+                io,
+                gameRoomData.players,  // Pass initial player map (empty at this point)
+                {  // Pass game config
+                    customImageGenPrompt: gameRoomData.roomCustomPrompt
+                    // Add other config overrides here if needed
+                },
+                callbacks
+            );
+            console.log(`Room ${roomCode}| Instantiated ImageinaryGame.`);
+        }
+    } else {
+        console.error(`Room ${roomCode}| Failed to create game callbacks.`);
+    }
 }
 
 function deleteRoom(roomCode) {
     const game = games.get(roomCode);
     if (!game) return;
 
-    // Clean up AI player resources
-    if (game.aiPlayers && game.aiPlayers.size > 0) {
-        game.aiPlayers.forEach((aiData, aiPlayerId) => {
-            if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
-            if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-        });
+    // Clean up game instance resources
+    if (game.currentGameInstance) {
+        game.currentGameInstance.cleanup();
     }
 
-    // Clean up game timers
-    if (game.lastChanceTimer) clearTimeout(game.lastChanceTimer);
+    // Clean up server-managed timers
+    if (game.activeTimers) {
+        game.activeTimers.forEach(timerId => clearTimeout(timerId));
+        game.activeTimers.clear();
+        game.timerEndTimes.clear();
+    }
 
     games.delete(roomCode);
     drawings.delete(roomCode);
@@ -858,12 +1079,17 @@ function deleteRoom(roomCode) {
 }
 
 function addPlayer(game, playerId, username) {
-    // Add the player to the game
+    // Add the player to the game's player list
     game.players.set(playerId, {
         username: username,
         score: 0,
         color: getRandomColor()
     });
+
+    // Notify game instance about the new player
+    if (game.currentGameInstance) {
+        game.currentGameInstance.handlePlayerJoin(playerId, game.players.get(playerId));
+    }
 
     reorderPlayers(game);
 }
@@ -921,7 +1147,7 @@ function createAIPlayer(roomCode, personality = null) {
         counter++;
     }
 
-    // Add the AI player to the game
+    // Add the AI player to the game's player list
     game.players.set(aiPlayerId, {
         username: uniqueAiName,
         score: 0,
@@ -929,18 +1155,14 @@ function createAIPlayer(roomCode, personality = null) {
         isAI: true
     });
 
-    // Initialize AI player data within the game object
+    // Initialize AI player data
     game.aiPlayers.set(aiPlayerId, {
         roomCode: roomCode,
         lastDrawingData: null,
         lastGuessTime: 0,
-        guessTimer: null,
-        drawingTimer: null,
         lastChatTime: 0,
-        chatTimer: null,
-        // Core personality prompt that defines the AI's character
-        corePersonalityPrompt: corePersonalityPrompt,
         // Store custom prompts
+        corePersonalityPrompt: corePersonalityPrompt,
         chatPrompt: chatPrompt,
         guessPrompt: guessPrompt
     });
@@ -954,731 +1176,20 @@ function removeAIPlayer(roomCode, aiPlayerId) {
     const game = games.get(roomCode);
     if (!game) return null;
 
-    // Remove the AI player
+    // Notify game instance before removing the player
+    game.currentGameInstance?.handlePlayerLeave(aiPlayerId);
+
+    // Remove the AI player from server's lists
     game.players.delete(aiPlayerId);
+    game.aiPlayers.delete(aiPlayerId);
 
-    // Clean up timers and other resources
-    const aiData = game.aiPlayers.get(aiPlayerId);
-    if (aiData) {
-        if (aiData.guessTimer) clearTimeout(aiData.guessTimer);
-        if (aiData.drawingTimer) clearTimeout(aiData.drawingTimer);
-        if (aiData.chatTimer) clearTimeout(aiData.chatTimer);
-        game.aiPlayers.delete(aiPlayerId);
-    }
-
-    // If the current drawer was this AI, start a new turn
-    if (game.currentDrawer === aiPlayerId) {
-        nextTurn(roomCode);
-    } else {
-        // Otherwise just update the game state
-        updateGameState(roomCode);
-    }
+    // Update game state for remaining players
+    updateGameState(roomCode);
 
     // Update public rooms list if this is a public room
     if (game.isPublic) {
         updatePublicRoomsList(roomCode);
     }
-}
-
-function startGame(roomCode) {
-    startTurn(roomCode);
-}
-
-function startTurn(roomCode) {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    // Check if there are any players in the game
-    if (game.players.size === 0) {
-        console.log(`Room ${roomCode}| No players, can't start turn`);
-        return;
-    }
-
-    game.voting = false;
-    game.votes.clear();
-
-    // Keep the existing chat history (but limit it to 25 messages)
-    const maxOldMessages = 25;
-    if (game.chatHistory.length > maxOldMessages) {
-        game.chatHistory = game.chatHistory.slice(-maxOldMessages);
-    }
-
-    game.lastGuesses.clear();
-    game.imageSrc = '';
-
-    // Clear the current drawing data
-    drawings.set(roomCode, '');
-
-    const players = Array.from(game.players.keys());
-    game.currentDrawer = players[(game.round - 1) % players.length];
-
-    // Verify that the drawer exists in the player list
-    if (!game.players.has(game.currentDrawer)) {
-        // Select a new drawer if the current one doesn't exist
-        if (players.length > 0) {
-            game.currentDrawer = players[0];
-        } else {
-            return;
-        }
-    }
-
-    const drawerUsername = game.players.get(game.currentDrawer).username;
-
-    game.currentPrompt = prompts[Math.floor(Math.random() * prompts.length)];
-
-    io.to(game.currentDrawer).emit('newPrompt', game.currentPrompt);
-    io.to(roomCode).emit('newTurn', {
-        drawer: drawerUsername,
-        drawerId: game.currentDrawer,
-        round: game.round,
-    });
-
-    const roundMs = roundDuration * 1000;
-    game.timerEnd = Date.now() + roundMs;
-    game.timer = setTimeout(() => endRound(roomCode), roundMs);
-
-    // Start the timer on all clients
-    io.to(roomCode).emit('startDisplayTimer', roundDuration);
-
-    updateGameState(roomCode);
-
-    // Send the initial blank canvas to all players
-    io.to(roomCode).emit('drawingUpdate', '');
-
-    // Also send the current state of the drawing if available when a player joins mid-game
-    const drawingData = drawings.get(roomCode);
-    if (drawingData) {
-        io.to(roomCode).emit('drawingUpdate', drawingData);
-    }
-
-    // If the current drawer is an AI player, schedule the drawing
-    const aiData = game.aiPlayers.get(game.currentDrawer);
-    if (aiData) {
-        // Schedule the drawing after a short delay
-        aiData.drawingTimer = setTimeout(() => {
-            createAIDrawing(roomCode, game.currentDrawer, game.currentPrompt);
-        }, aiTiming.drawingTime);
-    }
-
-    // Reset AI player guessing timers
-    resetAIPlayerGuessTimers(roomCode);
-}
-
-function nextTurn(roomCode) {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    clearTimeout(game.timer);
-    if (game.votingTimer) {
-        clearTimeout(game.votingTimer);
-        game.votingTimer = null;
-    }
-    if (game.lastChanceTimer) {
-        clearTimeout(game.lastChanceTimer);
-        game.lastChanceTimer = null;
-    }
-    game.round++;
-    startTurn(roomCode);
-}
-
-// Handle drawing updates for AI players
-function handleAIPlayerDrawingUpdate(roomCode, drawingData) {
-    const game = games.get(roomCode);
-    if (!game || !drawingData) return;
-
-    // Only process if there are AI players and we're not in voting phase
-    if (game.aiPlayers.size === 0 || game.voting) return;
-
-    // Process for each AI player
-    game.aiPlayers.forEach((aiData, aiPlayerId) => {
-        // Skip if this AI is the drawer
-        if (aiPlayerId === game.currentDrawer) return;
-
-        // Store the current drawing data for comparison
-        const hasChanges = aiData.lastDrawingData !== drawingData;
-        aiData.lastDrawingData = drawingData;
-
-        if (!hasChanges || aiData.guessTimer) return;
-
-        const timeNow = Date.now();
-        const timeLeft = game.timerEnd - timeNow;
-        const timeSinceLastGuess = timeNow - aiData.lastGuessTime;
-
-        if (timeLeft < 5) {
-            return;
-        }
-        // Normal timed guess (not last chance)
-        else if (timeSinceLastGuess > aiTiming.guessInterval) {
-            // Pick a random time between MIN and MAX for the guess
-            const guessDelay = aiTiming.minGuessTime + Math.random() * (aiTiming.maxGuessTime - aiTiming.minGuessTime);
-            aiData.guessTimer = setTimeout(() => {
-                makeAIGuess(roomCode, aiPlayerId, drawingData);
-            }, guessDelay);
-
-            // Randomly decide if we should also send a chat message before the guess
-            if (Math.random() < aiTiming.chatProbability && guessDelay > 8000) {
-                // Add a chat message that comes before the guess
-                const chatDelay = Math.min(3000 + Math.random() * 3000, guessDelay - 3000);
-                aiData.chatTimer = setTimeout(() => {
-                    makeAIChat(roomCode, aiPlayerId, drawingData);
-                }, chatDelay);
-            }
-        }
-        // Maybe just add a chat message if it's too soon for a guess
-        else if (timeSinceLastGuess > 6000 && Math.random() < 0.3) {
-            aiData.chatTimer = setTimeout(() => {
-                makeAIChat(roomCode, aiPlayerId, drawingData);
-            }, 2000 + Math.random() * 3000);
-        }
-    });
-}
-
-// Reset AI player timers at the start of a new turn
-function resetAIPlayerGuessTimers(roomCode) {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    // Clear all existing AI timers
-    game.aiPlayers.forEach((aiData, aiPlayerId) => {
-        // Clear guess timer
-        if (aiData.guessTimer) {
-            clearTimeout(aiData.guessTimer);
-            aiData.guessTimer = null;
-        }
-
-        // Clear chat timer
-        if (aiData.chatTimer) {
-            clearTimeout(aiData.chatTimer);
-            aiData.chatTimer = null;
-        }
-
-        // Reset timers and data
-        aiData.lastGuessTime = 0;
-        aiData.lastChatTime = 0;
-        aiData.lastDrawingData = null;
-    });
-
-    // Set up last chance timer for all AI players at exactly lastChanceTime before round end
-    const lastChanceTime = (roundDuration * 1000) - aiTiming.lastChanceTime;
-    game.lastChanceTimer = setTimeout(() => {
-        const drawingData = drawings.get(roomCode);
-        if (!drawingData) return;
-
-        game.aiPlayers.forEach((aiData, aiPlayerId) => {
-            if (aiPlayerId !== game.currentDrawer) {
-                // Force a guess at the end (no chat) to make sure AI players take a guess
-                // Only make a last chance guess if AI hasn't interacted recently
-                if (Date.now() - aiData.lastGuessTime > roundDuration * 0.7) {
-                    // Clear any existing guess timer
-                    if (aiData.guessTimer) {
-                        clearTimeout(aiData.guessTimer);
-                    }
-                    // Make a guess soon (within 2-3 seconds)
-                    const lastChanceDelay = 1000 + Math.random() * 2000;
-                    aiData.guessTimer = setTimeout(() => {
-                        // Force a guess (not chat) for last chance timer
-                        makeAIGuess(roomCode, aiPlayerId, drawingData);
-                    }, lastChanceDelay);
-                }
-            }
-        });
-    }, lastChanceTime);
-}
-
-// Make an AI player guess
-async function makeAIGuess(roomCode, aiPlayerId, drawingData) {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    const aiData = game.aiPlayers.get(aiPlayerId);
-    if (!aiData || game.voting) return;
-
-    try {
-        // Only make a guess if there's actual drawing data
-        if (!drawingData) return;
-
-        // Get player username and core personality
-        const username = game.players.get(aiPlayerId).username;
-        const corePersonalityPrompt = aiData.corePersonalityPrompt;
-
-        // Build the AI guess prompt
-        const prompt = promptBuilder.buildAIGuessPrompt(
-            game.chatHistory,
-            username,
-            corePersonalityPrompt,
-            aiData.guessPrompt
-        );
-
-        // Use textOnly=true to utilize the faster model for guesses
-        const result = await geminiService.requestGeminiResponse(prompt, drawingData, true);
-
-        let guess = result.text.trim();
-
-        // Update the last guess time
-        aiData.lastGuessTime = Date.now();
-
-        // Send the guess as a message
-        sendPlayerMessage(roomCode, aiPlayerId, guess, true);
-
-        // Maybe schedule a follow-up chat message
-        if (Math.random() < 0.3) {
-            const chatDelay = 5000 + Math.random() * 5000;
-            aiData.chatTimer = setTimeout(() => {
-                makeAIChat(roomCode, aiPlayerId, drawingData);
-            }, chatDelay);
-        }
-
-    } catch (error) {
-        console.error(`Error making AI guess: ${error.message}`);
-    }
-}
-
-// Make an AI player chat
-async function makeAIChat(roomCode, aiPlayerId, drawingData) {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    const aiData = game.aiPlayers.get(aiPlayerId);
-    if (!aiData || game.voting) return;
-
-    try {
-        // Record chat time
-        aiData.lastChatTime = Date.now();
-        aiData.chatTimer = null;
-
-        // Get player username and core personality
-        const username = game.players.get(aiPlayerId).username;
-        const corePersonalityPrompt = aiData.corePersonalityPrompt;
-
-        // Build the AI chat prompt
-        const prompt = promptBuilder.buildAIChatPrompt(
-            game.chatHistory,
-            username,
-            corePersonalityPrompt,
-            aiData.chatPrompt
-        );
-        const textOnly = true;
-
-        const result = await geminiService.requestGeminiResponse(prompt, drawingData, textOnly);
-
-        let message = result.text.trim();
-
-        sendPlayerMessage(roomCode, aiPlayerId, message, false);
-
-    } catch (error) {
-        console.error(`Error making AI chat: ${error.message}`);
-    }
-}
-
-// Make AI players vote on generated images
-async function makeAIPlayersVote(roomCode) {
-    const game = games.get(roomCode);
-    if (!game || !game.voting || !game.generatedImages || game.generatedImages.length === 0 || game.aiPlayers.length === 0) return;
-
-    // Create a combined image with all options for the AI to see
-    // This would normally be a visual process, but we'll provide the AI with text descriptions
-    const imageDescriptions = game.generatedImages.map((img, index) => {
-        return `Image ${index + 1}: Created based on guess "${img.guess}" by ${img.playerName}`;
-    }).join('\n');
-
-    // Only make AI players vote if they're not the drawer
-    game.aiPlayers.forEach(async (aiData, aiPlayerId) => {
-        if (aiPlayerId !== game.currentDrawer) {
-            try {
-                // Add a random delay so all AI players don't vote at the exact same time
-                const delay = 2000 + Math.random() * 8000;
-                setTimeout(async () => {
-                    // Check if voting is still active
-                    if (!game.voting) return;
-
-                    // Get player username and core personality
-                    const username = game.players.get(aiPlayerId).username;
-                    const corePersonalityPrompt = aiData.corePersonalityPrompt;
-
-                    // Build the AI voting prompt
-                    const prompt = promptBuilder.buildAIVotingPrompt(
-                        game.chatHistory,
-                        username,
-                        corePersonalityPrompt,
-                        game.generatedImages
-                    );
-
-                    // Get AI vote
-                    const result = await geminiService.requestGeminiResponse(prompt, null, true);
-                    const responseText = result.text.trim();
-
-                    // Try to extract vote number and message
-                    let vote, message;
-                    try {
-                        // Try to extract vote number
-                        const voteMatch = responseText.match(/Vote:\s*(\d+)/i);
-                        if (voteMatch && voteMatch[1]) {
-                            vote = parseInt(voteMatch[1]);
-                        }
-
-                        // Try to extract reason
-                        const reasonMatch = responseText.match(/Reason:\s*(.+)(?:\n|$)/i);
-                        if (reasonMatch && reasonMatch[1]) {
-                            message = reasonMatch[1].trim();
-                        } else {
-                            // If no reason found, use the whole response as message
-                            message = responseText;
-                        }
-
-                        // Validate the vote
-                        if (isNaN(vote) || vote < 1 || vote > game.generatedImages.length) {
-                            throw new Error("Invalid vote number");
-                        }
-
-                        // Adjust vote to be 0-indexed to match the image array
-                        vote = vote - 1;
-                    } catch (parseError) {
-                        console.error(`Error parsing AI vote response: ${parseError.message}`);
-                    }
-
-                    // Get the player ID associated with the selected image
-                    const selectedImagePlayerId = game.generatedImages[vote].playerId;
-
-                    // Send a message about the vote
-                    sendPlayerMessage(roomCode, aiPlayerId, message, false);
-
-                    setPlayerVote(roomCode, aiPlayerId, selectedImagePlayerId);
-
-                }, delay);
-
-            } catch (error) {
-                console.error(`Error making AI vote: ${error.message}`);
-            }
-        }
-    });
-}
-
-// Create an AI drawing
-async function createAIDrawing(roomCode, aiPlayerId, prompt) {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    const aiData = game.aiPlayers.get(aiPlayerId);
-    if (!aiData || game.currentDrawer !== aiPlayerId) return;
-
-    try {
-        // Get player username and core personality
-        const username = game.players.get(aiPlayerId).username;
-        const corePersonalityPrompt = aiData.corePersonalityPrompt;
-
-        // Build the AI drawing concept prompt
-        const prompt = promptBuilder.buildAIDrawingConceptPrompt(
-            game.chatHistory,
-            username,
-            corePersonalityPrompt,
-            game.currentPrompt
-        );
-
-        // Get drawing concept from AI
-        const conceptResult = await geminiService.requestGeminiResponse(prompt, null, true);
-        const drawingConcept = conceptResult.text.trim();
-
-        // Build the prompt for creating the actual drawing
-        const doodlePrompt = promptBuilder.buildAIDrawingCreationPrompt(game.currentPrompt);
-
-        const result = await geminiService.requestGeminiResponse(doodlePrompt);
-
-        // Check if we got image data
-        if (!result.imageData) {
-            throw new Error('No image data returned from Gemini API for AI drawing');
-        }
-
-        // Create a data URL from the base64 image data
-        const drawingData = `data:image/png;base64,${result.imageData}`;
-
-        // Store the drawing data
-        drawings.set(roomCode, drawingData);
-
-        // Send the drawing to all players
-        io.to(roomCode).emit('drawingUpdate', drawingData);
-
-        // Send a message about how the AI is approaching the drawing
-        sendPlayerMessage(roomCode, aiPlayerId, drawingConcept, false);
-
-        handleAIPlayerDrawingUpdate(roomCode, drawingData);
-    } catch (error) {
-        console.error(`Error creating AI drawing: ${error.message}`);
-
-        // If AI failed to generate, use a fallback approach - a blank canvas with a system message
-        const blankCanvasData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAmQAAAGQCAYAAAAnTe0YAAAABGdBTUEAALGPC/xhBQAAAAlwSFlzAAAOwwAADsMBx2+oZAAAABh0RVh0U29mdHdhcmUAcGFpbnQubmV0IDQuMS4xYyqcSwAAArpJREFUeF7t1cEJwDAQBEFTuftM5i7MQsA6WJiBBy78rLUuAEDlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBACiJAACURAAASiIAACURAICSCABASQQAoCQCAFASAQAoiQAAlEQAAEoiAAAlEQCAkggAQEkEAKAkAgBQEgEAKIkAAJREAABKIgAAJREAgJIIAEBJBACgJAIAUBIBAOjs3A+u1hUP+gYgfAAAAABJRU5ErkJggg==';
-        drawings.set(roomCode, blankCanvasData);
-        io.to(roomCode).emit('drawingUpdate', blankCanvasData);
-
-        // Let clients know about the AI drawing failure
-        sendSystemMessage(roomCode, `AI player had trouble drawing "${prompt}"`);
-    }
-}
-
-function endRound(roomCode) {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    clearTimeout(game.timer);
-
-    // Check if we have at least 2 players and valid guesses before generating images
-    if (game.players.size >= 2 && game.lastGuesses.size > 0) {
-        generateNewImage(roomCode);
-    } else {
-        // Skip to next turn if we can't generate images
-        nextTurn(roomCode);
-    }
-}
-
-async function generateNewImage(roomCode) {
-    const game = games.get(roomCode);
-    const drawingData = drawings.get(roomCode);
-
-    try {
-        if (!game || !drawingData) {
-            throw new Error(`Missing game or drawing data for roomCode: ${roomCode}`);
-        }
-
-        // Generate an array of valid guesses with player info
-        const guessesWithPlayers = [];
-        game.lastGuesses.forEach((guess, playerId) => {
-            // Make sure the player still exists in the game
-            if (guess && playerId !== game.currentDrawer && game.players.has(playerId)) {
-                guessesWithPlayers.push({
-                    playerId,
-                    playerName: game.players.get(playerId).username,
-                    guess
-                });
-            }
-        });
-
-        // No guesses or insufficient players, skip to next turn
-        if (guessesWithPlayers.length === 0 || game.players.size < 2) {
-            nextTurn(roomCode);
-            return;
-        }
-
-        // Create a directory for this room's generated images if it doesn't exist
-        const generatedDir = path.join(__dirname, 'public', 'generated');
-        fs.mkdirSync(generatedDir, { recursive: true });
-
-        // Send a system message to let players know images are being generated
-        sendSystemMessage(roomCode, "Generating images from your guesses...");
-
-        // Create array of image generation promises to run in parallel
-        const imageGenerationPromises = guessesWithPlayers.map(async (guessData) => {
-            try {
-                const guessPlayer = game.players.get(guessData.playerId);
-                const username = guessPlayer.username;
-
-                // Build image generation prompt with the custom template if available
-                const generationPrompt = promptBuilder.buildImageGenerationPrompt(
-                    guessData.guess,
-                    game.customPrompt
-                );
-
-                const result = await geminiService.requestGeminiResponse(generationPrompt, drawingData);
-                const imageData = result.imageData;
-
-                // Check if we actually got image data back
-                if (!imageData) {
-                    throw new Error('No image data returned from Gemini API');
-                }
-
-                const buffer = Buffer.from(imageData, 'base64');
-
-                // Sanitize filename components to prevent path traversal
-                const safeRoomCode = roomCode.replace(/[^a-zA-Z0-9]/g, '');
-                const safePlayerId = guessData.playerId.replace(/[^a-zA-Z0-9-]/g, '');
-                const safeRound = String(game.round).replace(/[^0-9]/g, '');
-                const filename = `generated-${safeRoomCode}-${safeRound}-${safePlayerId}.png`;
-                const filePath = path.join(generatedDir, filename);
-
-                // Validate the path is within the generated directory
-                const safePath = path.normalize(filePath);
-                if (!safePath.startsWith(generatedDir)) {
-                    throw new Error('Invalid file path detected');
-                }
-
-                // Write the image file
-                fs.writeFileSync(safePath, buffer);
-
-                // Return the image data object
-                return {
-                    playerId: guessData.playerId,
-                    playerName: username,
-                    guess: guessData.guess,
-                    imageSrc: `/generated/${filename}`,
-                    text: result.text || ''
-                };
-            } catch (error) {
-                console.error(`Error generating image for guess "${guessData.guess}":`, error.message);
-                // Return null for failed generations
-                return null;
-            }
-        });
-
-        // Wait for all image generation promises to complete
-        const imageResults = await Promise.all(imageGenerationPromises);
-
-        // Filter out any failed generations (null results)
-        const generatedImages = imageResults.filter(result => result !== null);
-
-        // If we couldn't generate any images, start next turn
-        if (generatedImages.length === 0) {
-            sendSystemMessage(roomCode, "Failed to generate any images from the guesses.");
-            nextTurn(roomCode);
-            return;
-        }
-
-        // Store the generated images in the game state
-        game.generatedImages = generatedImages;
-
-        // Start the voting phase
-        startVoting(roomCode);
-
-    } catch (error) {
-        console.error('Error in image generation process:', error.message, error.stack);
-        io.to(roomCode).emit('error', 'Failed to generate images');
-
-        // Skip to next turn
-        nextTurn(roomCode);
-    }
-}
-
-function startVoting(roomCode) {
-    const game = games.get(roomCode);
-    if (!game) return;
-
-    game.voting = true;
-    game.votes = new Map(); // Reset votes
-
-    // Send all generated images to clients for voting
-    io.to(roomCode).emit('startVoting', game.generatedImages);
-
-    game.votingTimerEnd = Date.now() + 20000;
-    game.votingTimer = setTimeout(() => tallyVotes(roomCode), 20000);
-
-    // Start the voting timer on all clients
-    io.to(roomCode).emit('startDisplayTimer', 20);
-
-    // Make AI players vote
-    makeAIPlayersVote(roomCode);
-}
-
-function setPlayerVote(roomCode, playerId, voteId) {
-    const game = games.get(roomCode);
-    if (!game || !game.voting) return;
-    // Don't allow voting twice
-    if (game.votes.get(playerId)) return;
-    // Store which player's image was voted for
-    game.votes.set(playerId, voteId);
-
-    // Get the voter's information to send to other clients
-    const voter = game.players.get(playerId);
-    if (voter) {
-        // Emit playerVoted event to everyone in the room except the voter
-        io.to(roomCode).emit('playerVoted', {
-            playerId: voteId,
-            voterName: voter.username,
-            voterColor: voter.color
-        });
-    }
-
-    // If everyone has voted, end voting early
-    if (game.votes.size === game.players.size - 1) { // -1 for the drawer who doesn't vote
-        tallyVotes(roomCode);
-    }
-}
-
-function tallyVotes(roomCode) {
-    const game = games.get(roomCode);
-    if (!game) return;
-    if (game.votingTimer) {
-        clearTimeout(game.votingTimer);
-        game.votingTimer = null;
-    }
-    if (!game.voting) return;
-    game.voting = false;
-
-    // Count votes for each image
-    const voteCount = new Map();
-    game.generatedImages.forEach(image => {
-        voteCount.set(image.playerId, 0);
-    });
-
-    // Tally up the votes
-    game.votes.forEach((imagePlayerId, voterId) => {
-        if (voteCount.has(imagePlayerId)) {
-            voteCount.set(imagePlayerId, voteCount.get(imagePlayerId) + 1);
-        }
-    });
-
-    // Calculate total voters (excluding the drawer)
-    const totalVoters = game.players.size - 1;
-
-    // Find the winner(s) - now requiring > 50% of votes, not just the most votes
-    let winners = [];
-
-    voteCount.forEach((votes, playerId) => {
-        // Check if player got more than 50% of votes
-        if (votes > totalVoters / 2) {
-            winners.push(playerId);
-        }
-    });
-
-    // Award points to winners
-    let resultMessage = '';
-    if (winners.length > 0) {
-        winners.forEach(winnerId => {
-            // Check if the player still exists before adding score
-            if (game.players.has(winnerId)) {
-                game.players.get(winnerId).score += 1;
-            }
-        });
-
-        // Get vote counts for the message
-        const winnerVotes = new Map();
-        winners.forEach(winnerId => {
-            winnerVotes.set(winnerId, voteCount.get(winnerId));
-        });
-
-        // Filter out winners who are no longer in the game
-        const validWinners = winners.filter(id => game.players.has(id));
-
-        if (validWinners.length === 0) {
-            resultMessage = `The winner is no longer in the game. No points awarded.`;
-        } else if (validWinners.length === 1) {
-            const winnerName = game.players.get(validWinners[0]).username;
-            const votes = voteCount.get(validWinners[0]);
-            resultMessage = `${winnerName}'s image won with ${votes} votes! They get a point!`;
-        } else {
-            const winnersList = validWinners.map(id =>
-                `${game.players.get(id).username} (${voteCount.get(id)} votes)`
-            ).join(', ');
-            resultMessage = `Multiple winners! ${winnersList} each get a point!`;
-        }
-    } else {
-        resultMessage = `No image received more than 50% of votes. No points awarded.`;
-    }
-
-    // Convert vote count Map to object for client
-    const voteCountObj = {};
-    voteCount.forEach((count, playerId) => {
-        voteCountObj[playerId] = count;
-    });
-
-    io.to(roomCode).emit('votingResults', {
-        message: resultMessage,
-        scores: Array.from(game.players.entries()).map(([id, data]) => ({
-            id,
-            score: data.score
-        })),
-        votes: voteCountObj
-    });
-
-    setTimeout(() => {
-        nextTurn(roomCode);
-    }, 8000);
 }
 
 function updateGameState(roomCode) {
@@ -1691,24 +1202,25 @@ function updateGameState(roomCode) {
         return;
     }
 
+    // Create players list to send to clients
     const players = Array.from(game.players.entries()).map(([id, data]) => ({
         id,
-        ...data
+        username: data.username,
+        color: data.color,
+        isAI: data.isAI,
+        score: data.score
     }));
 
-    // Ensure we have a valid drawer
-    if (!game.currentDrawer || !game.players.has(game.currentDrawer)) {
-        // If drawer is invalid, select first player
-        const firstPlayer = Array.from(game.players.keys())[0];
-        game.currentDrawer = firstPlayer;
-        console.log(`Room ${roomCode}| Invalid drawer, selecting new drawer: ${firstPlayer}`);
-    }
+    // Get game state snapshot from game instance
+    const gameStateSnapshot = game.currentGameInstance?.getGameStateSnapshot() || {};
 
+    // Send game state to all clients in the room
     io.to(roomCode).emit('gameState', {
         players,
-        currentDrawer: game.currentDrawer,
-        round: game.round,
-        voting: game.voting,
+        currentDrawer: gameStateSnapshot.currentDrawerId || null,
+        round: gameStateSnapshot.round || 1,
+        voting: gameStateSnapshot.voting || false,
+        // You might add more detailed state info as needed
     });
 }
 
@@ -1725,10 +1237,11 @@ function updatePublicRoomsList(roomCode) {
     const roomInfo = {
         roomCode,
         playerCount: game.players.size,
-        round: game.round,
+        round: game.currentGameInstance?.round || 1,
         createdAt: game.createdAt,
         hostName: hostName,
-        prompt: game.customPrompt
+        prompt: game.roomCustomPrompt,
+        gameType: game.gameType || 'imageinary'
     };
 
     publicRooms.set(roomCode, roomInfo);
@@ -1782,7 +1295,7 @@ function cleanupRooms() {
 
             const roomInfo = publicRooms.get(roomCode);
             roomInfo.playerCount = game.players.size;
-            roomInfo.round = game.round;
+            roomInfo.round = game.currentGameInstance?.round || 1;
             roomInfo.hostName = hostName; // Make sure host name is updated if host changes
             publicRooms.set(roomCode, roomInfo);
         }

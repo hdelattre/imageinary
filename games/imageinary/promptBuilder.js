@@ -1,5 +1,5 @@
 // promptBuilder.js - Handles crafting different prompts to geminiService
-const PROMPT_CONFIG = require('./public/shared-config');
+const PROMPT_CONFIG = require('../../public/shared-config');
 const DEFAULT_CHAT_PROMPT = "You're playing a drawing game with friends. Look at this drawing and the chat history, then send a single casual, funny message as if you're a player. Don't guess what the drawing is. Instead, comment on the drawing process, react to other messages, or make a light joke. But surprising and sometimes controversial. Respond with your only chat message and nothing else.";
 
 function formatChatHistory(chatHistory, messageCount = 10) {
@@ -27,15 +27,15 @@ function buildAIChatPrompt(recentChatHistory, username, corePersonalityPrompt, c
     return `You are ${username}. Your personality: ${personalityPrompt}\n\nRecent chat history:\n${recentChatHistory}\n\n${actionPrompt}`;
 }
 
-function buildAIDrawingConceptPrompt(recentChatHistory, username, corePersonalityPrompt, currentPrompt) {
+function buildAIDrawingConceptPrompt(recentChatHistory, username, corePersonalityPrompt) {
     recentChatHistory = formatChatHistory(recentChatHistory);
-    const drawPrompt = `You need to draw ${currentPrompt}. Based on your personality and the chat history, describe briefly how you will draw it.`;
+    const drawPrompt = `You're about to draw something in a Pictionary-style game. Based on your personality and the chat history, describe briefly what you might draw and how.`;
     const personalityPrompt = corePersonalityPrompt || PROMPT_CONFIG.CORE_PERSONALITY_PROMPT;
     return `You are ${username}. Your personality: ${personalityPrompt}\n\nRecent chat history:\n${recentChatHistory}\n\n${drawPrompt}`;
 }
 
-function buildAIDrawingCreationPrompt(drawingSubject) {
-    return `Create a fun black and white Pictionary-style drawing of a "${drawingSubject}". Make it look hand-drawn and somewhat recognizable ${drawingSubject}. The drawing should be stylized like a human would draw it when playing Pictionary - simple lines, no shading, minimal details.`;
+function buildAIDrawingCreationPrompt() {
+    return `Create a fun black and white Pictionary-style drawing of something simple but interesting and surprising. Make it look hand-drawn and somewhat abstract. The drawing should be stylized like a human would draw it when playing Pictionary - simple lines, no shading, minimal details.`;
 }
 
 function buildAIVotingPrompt(recentChatHistory, username, corePersonalityPrompt, options) {

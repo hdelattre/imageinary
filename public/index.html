@@ -15,6 +15,13 @@
         <div class="lobby-form">
             <div class="form-group">
                 <input type="text" id="username" autocomplete="nickname" placeholder="Enter your name">
+                <div class="game-type-selector">
+                    <label for="gameTypeSelect">Game Type:</label>
+                    <select id="gameTypeSelect">
+                        <option value="imageinary" selected>Imageinary</option>
+                        <option value="zoob">Zoob</option>
+                    </select>
+                </div>
                 <div class="room-buttons">
                     <button type="button" onclick="createRoom(false)" class="primary-btn">Create Private Room</button>
                     <button type="button" onclick="createRoom(true)" class="secondary-btn">Create Public Room</button>
@@ -83,6 +90,17 @@
                 <canvas id="canvas" width="600" height="400"></canvas>
             </div>
 
+            <!-- Zoob View -->
+            <div id="zoob-view" style="display: none;">
+                <div class="zoob-container">
+                    <div id="zoob-world-image" class="zoob-image-container">
+                        <img id="zoobWorldImage" src="" alt="Zoob World" class="zoob-image">
+                    </div>
+                    <div id="zoob-world-description" class="zoob-description"></div>
+                    <div id="zoob-inventory" class="zoob-inventory"></div>
+                </div>
+            </div>
+
             <!-- Voting View -->
             <div id="voting" style="display: none;">
                 <div id="voting-images"></div>
@@ -96,7 +114,7 @@
                 </button>
             </span>
             <span class="game-info-item">🔄 <span id="round"></span></span>
-            <span class="game-info-item">✏️ <span id="drawer" data-id=""></span></span>
+            <span class="game-info-item" id="drawerInfo">✏️ <span id="drawer" data-id=""></span></span>
             <span class="game-info-item" id="timer"></span>
         </div>
         <div class="chat-container">
@@ -164,6 +182,10 @@
     <script src="shared-config.js"></script>
     <script src="promptEditor.js"></script>
     <script src="aiPersonalityEditor.js"></script>
+    <!-- Game-specific scripts -->
+    <script src="games/imageinary/imageinary.js"></script>
+    <script src="games/zoob/zoob.js"></script>
+    <!-- Main client scripts -->
     <script src="client.js"></script>
     <script src="input.js"></script>
 </body>

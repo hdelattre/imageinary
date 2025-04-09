@@ -406,8 +406,9 @@ function joinPublicRoom(roomCode) {
 }
 
 function startGame(roomCode, username, inviteLink, gameType = 'imageinary') {
-    // Clear the rooms refresh interval when game starts
+
     clearRoomRefreshInterval();
+    clearChat();
 
     // Reset currentPlayers
     currentPlayers = [];

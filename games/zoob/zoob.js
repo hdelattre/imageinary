@@ -5,7 +5,7 @@ const zoobPromptBuilder = require('./zoobPromptBuilder');
 const INPUT_DURATION_SECONDS = 40; // Time for players to input actions
 const VOTING_DURATION_SECONDS = 15; // Time for players to vote
 const RESULTS_DURATION_SECONDS = 10; // Time to show winning action before next round starts
-const MAX_HISTORY_LENGTH = 25; // Maximum number of entries to keep in history
+const MAX_HISTORY_LENGTH = 100; // Maximum number of entries to keep in history
 
 // AI timing constants similar to imageinary.js
 const AI_TIMING = {

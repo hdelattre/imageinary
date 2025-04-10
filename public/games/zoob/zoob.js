@@ -23,6 +23,7 @@ function initZoobUI(socket) {
     // --- Bind Zoob Specific Listeners ---
     zoobSocket.on('zoobWorldUpdate', handleWorldUpdate);
     zoobSocket.on('zoobActionResults', handleActionResults);
+    zoobSocket.on('zoobPlayerVoted', handleZoobVote);
     zoobSocket.on('zoobFinalResult', handleFinalResult);
 
     console.log("Zoob Initialized and Listeners Bound");
@@ -121,6 +122,15 @@ function handleActionResults(actionResults) {
 
     // Call the generic display function from client.js
     displayVotingOptions(options, voteCallback);
+}
+
+/**
+ * Handles vote animations for Zoob
+ * @param {Object} voteData - Data about the vote cast
+ */
+function handleZoobVote(voteData) {
+    // Use the common vote handler from client.js
+    handleCommonPlayerVote(voteData);
 }
 
 function handleFinalResult(data) {
